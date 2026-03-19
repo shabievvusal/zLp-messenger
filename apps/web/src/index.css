@@ -49,12 +49,10 @@
   /* ── Message bubbles ──────────────────────────────────── */
 
   .bubble-out {
-    @apply bg-bubble-out dark:bg-bubble-out-dark rounded-[18px] rounded-br-[4px]
-      px-3 py-2 shadow-sm;
+    @apply bg-bubble-out dark:bg-bubble-out-dark px-3 py-1.5 shadow-sm;
   }
   .bubble-in {
-    @apply bg-bubble-in dark:bg-bubble-in-dark rounded-[18px] rounded-bl-[4px]
-      px-3 py-2 shadow-sm;
+    @apply bg-bubble-in dark:bg-bubble-in-dark px-3 py-1.5 shadow-sm;
   }
 
   /* ── Scrollbars ───────────────────────────────────────── */

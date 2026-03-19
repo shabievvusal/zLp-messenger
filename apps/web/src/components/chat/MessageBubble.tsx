@@ -20,6 +20,15 @@ interface Props {
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉']
 
+// Telegram-style bubble shape based on position in a sequence
+// Avatar is always on the LEFT side, so left corners change shape
+function bubbleShape(isGrouped: boolean, isLastInGroup: boolean): string {
+  if (!isGrouped && isLastInGroup)  return 'rounded-[18px] rounded-bl-[4px]'   // single
+  if (!isGrouped && !isLastInGroup) return 'rounded-[18px] rounded-bl-[6px]'   // first of series
+  if (isGrouped  && !isLastInGroup) return 'rounded-r-[18px] rounded-l-[6px]'  // middle
+  return 'rounded-r-[18px] rounded-tl-[6px] rounded-bl-[4px]'                  // last of series
+}
+
 function parseMentions(text: string): React.ReactNode {
   const parts = text.split(/(@\w+)/g)
   return parts.map((part, i) =>
