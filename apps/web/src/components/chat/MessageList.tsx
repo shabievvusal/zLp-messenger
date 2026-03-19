@@ -6,11 +6,16 @@ import { DateDivider } from './DateDivider'
 import { useChatCtx } from '@/contexts/ChatContext'
 import { format, isSameDay, differenceInMinutes } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import type { Message } from '@/types'
 
 interface Props {
   chatId: string
   onLoadMore: () => void
+}
+
+// Per-chat scroll state saved across switches
+interface ScrollState {
+  scrollTop: number
+  nearBottom: boolean
 }
 
 export function MessageList({ chatId, onLoadMore }: Props) {
@@ -22,14 +27,35 @@ export function MessageList({ chatId, onLoadMore }: Props) {
   const prevLenRef = useRef(0)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
 
-  // When switching chats — reset counter and jump to bottom immediately
-  useEffect(() => {
-    prevLenRef.current = 0
-    setShowScrollBtn(false)
-    bottomRef.current?.scrollIntoView()
-  }, [chatId])
+  // Persists scroll positions for all chats across switches (key = chatId)
+  const scrollStates = useRef<Map<string, ScrollState>>(new Map())
 
-  // Auto scroll to bottom on new message
+  // When switching chats: save old position (via handleScroll) and restore new one
+  useEffect(() => {
+    setShowScrollBtn(false)
+
+    const state = scrollStates.current.get(chatId)
+
+    if (!state || state.nearBottom) {
+      // First visit to this chat, or user was near the bottom — go to bottom.
+      // Reset prevLen so the messages.length effect sees "initial load" and also scrolls.
+      prevLenRef.current = 0
+      requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView()
+      })
+    } else {
+      // User was reading old messages — restore their exact position.
+      // Set prevLen to current count so the messages.length effect doesn't overwrite us.
+      prevLenRef.current = messages.length
+      requestAnimationFrame(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTop = state.scrollTop
+        }
+      })
+    }
+  }, [chatId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-scroll on new messages (only relevant while inside the same chat)
   useEffect(() => {
     const added = messages.length - prevLenRef.current
     if (added === 1) {
@@ -39,11 +65,11 @@ export function MessageList({ chatId, onLoadMore }: Props) {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
       }
     } else if (added > 1 && prevLenRef.current === 0) {
-      // Initial load — scroll to bottom instantly
+      // Initial load — jump to bottom instantly
       bottomRef.current?.scrollIntoView()
     }
     prevLenRef.current = messages.length
-  }, [messages.length])
+  }, [messages.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll-to and highlight message (from search)
   useEffect(() => {
@@ -59,14 +85,17 @@ export function MessageList({ chatId, onLoadMore }: Props) {
     setHighlightMsgId(null)
   }, [highlightMsgId])
 
-  // Show scroll-to-bottom button + infinite scroll
+  // Track scroll position for current chat + show/hide scroll button + infinite scroll
   const handleScroll = useCallback(() => {
     const el = containerRef.current
     if (!el) return
     const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
-    setShowScrollBtn(fromBottom > 300)
+    const nearBottom = fromBottom <= 300
+    setShowScrollBtn(!nearBottom)
     if (el.scrollTop < 100) onLoadMore()
-  }, [onLoadMore])
+    // Save state so we can restore it when switching back to this chat
+    scrollStates.current.set(chatId, { scrollTop: el.scrollTop, nearBottom })
+  }, [onLoadMore, chatId])
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
