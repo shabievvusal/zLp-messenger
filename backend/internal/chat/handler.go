@@ -63,6 +63,26 @@ func (h *Handler) CreateGroup(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(chat)
 }
 
+// GET /api/chats/:chatID/members
+func (h *Handler) GetMembers(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+
+	members, err := h.service.GetMembers(c.Context(), userID, chatID)
+	if err != nil {
+		switch err {
+		case ErrNotMember:
+			return fiber.NewError(fiber.StatusForbidden, "not a member")
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, "failed to get members")
+		}
+	}
+	return c.JSON(members)
+}
+
 // GET /api/chats/:chatID/messages
 func (h *Handler) GetMessages(c *fiber.Ctx) error {
 	userID := auth.GetUserIDFromCtx(c)

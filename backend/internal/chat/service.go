@@ -113,6 +113,14 @@ func (s *Service) GetUserChats(ctx context.Context, userID uuid.UUID) ([]models.
 	return s.repo.GetUserChats(ctx, userID)
 }
 
+func (s *Service) GetMembers(ctx context.Context, userID, chatID uuid.UUID) ([]models.ChatMember, error) {
+	// Проверяем что пользователь — участник чата
+	if _, err := s.repo.GetMember(ctx, chatID, userID); err != nil {
+		return nil, ErrNotMember
+	}
+	return s.repo.GetMembers(ctx, chatID)
+}
+
 // ============================================================
 // MESSAGES
 // ============================================================

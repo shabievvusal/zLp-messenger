@@ -109,6 +109,7 @@ func main() {
 	protected.Post("/chats/private", chatHandler.CreatePrivateChat)
 	protected.Post("/chats/group", chatHandler.CreateGroup)
 
+	protected.Get("/chats/:chatID/members", chatHandler.GetMembers)
 	protected.Get("/chats/:chatID/messages", chatHandler.GetMessages)
 	protected.Post("/chats/:chatID/messages", chatHandler.SendMessage)
 	protected.Get("/chats/:chatID/messages/search", chatHandler.SearchMessages)

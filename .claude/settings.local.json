@@ -5,7 +5,10 @@
       "Bash(mkdir -p \"b:/рабочий стол/zlp-messenger/backend/cmd/server\")",
       "Bash(mkdir -p \"b:/рабочий стол/zlp-messenger/backend/internal/auth\")",
       "Bash(mkdir -p \"b:/рабочий стол/zlp-messenger/backend/internal/chat\")",
-      "Bash(mkdir -p \"b:/рабочий стол/zlp-messenger/backend/internal/ws\")"
+      "Bash(mkdir -p \"b:/рабочий стол/zlp-messenger/backend/internal/ws\")",
+      "Bash(go build:*)",
+      "Bash(go mod:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

@@ -30,4 +30,9 @@ export const chatApi = {
 
   searchMessages: (chatId: string, q: string) =>
     api.get<Message[]>(`/chats/${chatId}/messages/search`, { params: { q } }),
+
+  getMembers: (chatId: string) =>
+    api.get<{ user_id: string; role: string; user?: { id: string; first_name: string; last_name?: string; avatar_url?: string } }[]>(
+      `/chats/${chatId}/members`
+    ),
 }

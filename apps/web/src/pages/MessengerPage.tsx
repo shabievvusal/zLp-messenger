@@ -11,6 +11,7 @@ import { useChatStore } from '@/store/chat'
 import { useCallStore } from '@/store/call'
 import { useAuthStore } from '@/store/auth'
 import { chatApi } from '@/api/chat'
+import { generateId } from '@/utils/uuid'
 
 export function MessengerPage() {
   const setChats = useChatStore((s) => s.setChats)
@@ -46,7 +47,7 @@ export function MessengerPage() {
 
   // Initiate an outgoing call
   const handleStartCall = useCallback(async (targetId: string, targetName: string, type: 'voice' | 'video') => {
-    const callId = crypto.randomUUID()
+    const callId = generateId()
     setActive({
       callId,
       targetId,
