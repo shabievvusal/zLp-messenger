@@ -122,6 +122,98 @@ func (r *Repository) DeleteChat(ctx context.Context, chatID uuid.UUID) error {
 	return err
 }
 
+func (r *Repository) SetInviteLink(ctx context.Context, chatID uuid.UUID, link string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE chats SET invite_link = $1, updated_at = NOW() WHERE id = $2`, link, chatID)
+	return err
+}
+
+func (r *Repository) UpdatePermissions(ctx context.Context, chatID uuid.UUID, permJSON string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE chats SET permissions = $1::jsonb, updated_at = NOW() WHERE id = $2`, permJSON, chatID)
+	return err
+}
+
+func (r *Repository) SetMemberRole(ctx context.Context, chatID, userID uuid.UUID, role models.MemberRole, title *string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE chat_members SET role = $1, title = $2 WHERE chat_id = $3 AND user_id = $4`,
+		role, title, chatID, userID)
+	return err
+}
+
+func (r *Repository) LogAdminAction(ctx context.Context, a *models.AdminAction) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO admin_actions (id, chat_id, actor_id, target_id, action, details)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		a.ID, a.ChatID, a.ActorID, a.TargetID, a.Action, a.Details)
+	return err
+}
+
+func (r *Repository) GetAdminActions(ctx context.Context, chatID uuid.UUID, limit int) ([]models.AdminAction, error) {
+	var actions []models.AdminAction
+	err := r.db.SelectContext(ctx, &actions, `
+		SELECT id, chat_id, actor_id, target_id, action, details, created_at
+		FROM admin_actions WHERE chat_id = $1
+		ORDER BY created_at DESC LIMIT $2`, chatID, limit)
+	if err != nil || len(actions) == 0 {
+		return actions, err
+	}
+
+	// Collect unique user IDs
+	ids := map[uuid.UUID]bool{}
+	for _, a := range actions {
+		ids[a.ActorID] = true
+		if a.TargetID != nil {
+			ids[*a.TargetID] = true
+		}
+	}
+	uids := make([]uuid.UUID, 0, len(ids))
+	for id := range ids {
+		uids = append(uids, id)
+	}
+
+	// Batch fetch users
+	if len(uids) > 0 {
+		ph := make([]string, len(uids))
+		args := make([]interface{}, len(uids))
+		for i, id := range uids {
+			ph[i] = fmt.Sprintf("$%d", i+1)
+			args[i] = id
+		}
+		q := fmt.Sprintf(
+			`SELECT id, username, first_name, last_name, avatar_url FROM users WHERE id IN (%s)`,
+			strings.Join(ph, ","))
+		type row struct {
+			ID        uuid.UUID `db:"id"`
+			Username  string    `db:"username"`
+			FirstName string    `db:"first_name"`
+			LastName  *string   `db:"last_name"`
+			AvatarURL *string   `db:"avatar_url"`
+		}
+		var rows []row
+		if err := r.db.SelectContext(ctx, &rows, q, args...); err == nil {
+			userMap := map[uuid.UUID]*models.PublicUser{}
+			for _, u := range rows {
+				pu := &models.PublicUser{
+					ID: u.ID, Username: u.Username,
+					FirstName: u.FirstName, AvatarURL: u.AvatarURL,
+				}
+				if u.LastName != nil {
+					pu.LastName = u.LastName
+				}
+				userMap[u.ID] = pu
+			}
+			for i := range actions {
+				actions[i].Actor = userMap[actions[i].ActorID]
+				if actions[i].TargetID != nil {
+					actions[i].Target = userMap[*actions[i].TargetID]
+				}
+			}
+		}
+	}
+	return actions, nil
+}
+
 func (r *Repository) GetPrivateChat(ctx context.Context, userA, userB uuid.UUID) (*models.Chat, error) {
 	var chat models.Chat
 	err := r.db.GetContext(ctx, &chat, `

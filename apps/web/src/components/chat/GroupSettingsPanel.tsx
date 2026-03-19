@@ -1,9 +1,15 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Chat, ChatMember } from '@/types'
 import { chatApi } from '@/api/chat'
 import { useChatStore } from '@/store/chat'
 import { Avatar } from '@/components/ui/Avatar'
+import { PermissionsPanel } from './PermissionsPanel'
+import { InviteLinksPanel } from './InviteLinksPanel'
+import { AdminsPanel } from './AdminsPanel'
+import { AdminActionsPanel } from './AdminActionsPanel'
+
+type SubPanel = 'permissions' | 'invite' | 'admins' | 'actions' | null
 
 interface Props {
   chat: Chat
@@ -12,7 +18,7 @@ interface Props {
   onBack: () => void
 }
 
-export function GroupSettingsPanel({ chat, members, onClose, onBack }: Props) {
+export function GroupSettingsPanel({ chat, members: initialMembers, onClose, onBack }: Props) {
   const navigate = useNavigate()
   const upsertChat = useChatStore((s) => s.upsertChat)
   const removeChat = useChatStore((s) => s.removeChat)
@@ -22,9 +28,9 @@ export function GroupSettingsPanel({ chat, members, onClose, onBack }: Props) {
   const [isPublic, setIsPublic] = useState(chat.is_public)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
-  const titleRef = useRef<HTMLInputElement>(null)
+  const [subPanel, setSubPanel] = useState<SubPanel>(null)
+  const [members, setMembers] = useState<ChatMember[]>(initialMembers)
 
-  // Track dirty state
   useEffect(() => {
     const changed =
       title !== (chat.title ?? '') ||
@@ -58,9 +64,29 @@ export function GroupSettingsPanel({ chat, members, onClose, onBack }: Props) {
     } catch { /* ignore */ }
   }
 
-  const ownerCount = members.filter((m) => m.role === 'owner').length
-  const adminCount = members.filter((m) => m.role === 'admin').length
+  const adminCount = members.filter((m) => m.role === 'owner' || m.role === 'admin').length
   const memberCount = members.filter((m) => m.role === 'member' || m.role === 'restricted').length
+
+  // Sub-panels slide in on top
+  if (subPanel === 'permissions') {
+    return <PermissionsPanel chatId={chat.id} onBack={() => setSubPanel(null)} />
+  }
+  if (subPanel === 'invite') {
+    return <InviteLinksPanel chatId={chat.id} onBack={() => setSubPanel(null)} />
+  }
+  if (subPanel === 'admins') {
+    return (
+      <AdminsPanel
+        chatId={chat.id}
+        members={members}
+        onBack={() => setSubPanel(null)}
+        onMembersChanged={setMembers}
+      />
+    )
+  }
+  if (subPanel === 'actions') {
+    return <AdminActionsPanel chatId={chat.id} onBack={() => setSubPanel(null)} />
+  }
 
   return (
     <>
@@ -88,8 +114,8 @@ export function GroupSettingsPanel({ chat, members, onClose, onBack }: Props) {
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
 
-          {/* Avatar + name row */}
-          <div className="flex items-center gap-4 px-4 pt-5 pb-4">
+          {/* Avatar + name */}
+          <div className="flex items-center gap-4 px-4 pt-5 pb-3">
             <div className="relative flex-shrink-0">
               <Avatar name={title || 'Г'} url={chat.avatar_url} size={64} />
               <button className="absolute bottom-0 right-0 w-5 h-5
@@ -105,13 +131,12 @@ export function GroupSettingsPanel({ chat, members, onClose, onBack }: Props) {
             <div className="flex-1 min-w-0">
               <p className="text-[10px] text-primary-500 font-medium mb-1">Название группы</p>
               <input
-                ref={titleRef}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 maxLength={128}
                 className="w-full text-sm font-medium text-gray-900 dark:text-gray-100
                   bg-transparent border-b border-primary-400 dark:border-primary-600
-                  outline-none py-0.5 pr-6"
+                  outline-none py-0.5"
               />
             </div>
           </div>
@@ -131,10 +156,9 @@ export function GroupSettingsPanel({ chat, members, onClose, onBack }: Props) {
             />
           </div>
 
-          {/* Settings sections */}
+          {/* Settings rows */}
           <div className="border-t border-black/5 dark:border-white/5">
 
-            {/* Group type */}
             <SettingsRow
               icon={
                 <svg className="w-5 h-5 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -143,8 +167,8 @@ export function GroupSettingsPanel({ chat, members, onClose, onBack }: Props) {
               }
               label="Тип группы"
               value={isPublic ? 'Публичная' : 'Приватная'}
-              onClick={() => setIsPublic((v) => !v)}
               valueColor="text-primary-500"
+              onClick={() => setIsPublic((v) => !v)}
             />
 
             <SettingsRow
@@ -154,7 +178,7 @@ export function GroupSettingsPanel({ chat, members, onClose, onBack }: Props) {
                 </svg>
               }
               label="Разрешения"
-              value=""
+              onClick={() => setSubPanel('permissions')}
             />
 
             <SettingsRow
@@ -164,7 +188,7 @@ export function GroupSettingsPanel({ chat, members, onClose, onBack }: Props) {
                 </svg>
               }
               label="Пригласительные ссылки"
-              value=""
+              onClick={() => setSubPanel('invite')}
             />
           </div>
 
@@ -177,7 +201,8 @@ export function GroupSettingsPanel({ chat, members, onClose, onBack }: Props) {
                 </svg>
               }
               label="Администраторы"
-              value={String(ownerCount + adminCount)}
+              value={String(adminCount)}
+              onClick={() => setSubPanel('admins')}
             />
 
             <SettingsRow
@@ -188,6 +213,7 @@ export function GroupSettingsPanel({ chat, members, onClose, onBack }: Props) {
               }
               label="Участники"
               value={String(memberCount)}
+              onClick={onBack}
             />
 
             <SettingsRow
@@ -197,7 +223,7 @@ export function GroupSettingsPanel({ chat, members, onClose, onBack }: Props) {
                 </svg>
               }
               label="Недавние действия"
-              value=""
+              onClick={() => setSubPanel('actions')}
             />
           </div>
 
@@ -214,12 +240,12 @@ export function GroupSettingsPanel({ chat, members, onClose, onBack }: Props) {
           </div>
         </div>
 
-        {/* Footer: Cancel / Save */}
+        {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-4 py-3
           border-t border-black/8 dark:border-white/8 flex-shrink-0">
           <button onClick={onBack}
-            className="px-4 py-1.5 text-sm font-medium text-primary-500
-              hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-xl transition-colors">
+            className="px-4 py-1.5 text-sm font-medium text-gray-500
+              hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-colors">
             Отмена
           </button>
           <button
@@ -241,7 +267,7 @@ function SettingsRow({
 }: {
   icon: React.ReactNode
   label: string
-  value: string
+  value?: string
   onClick?: () => void
   valueColor?: string
 }) {

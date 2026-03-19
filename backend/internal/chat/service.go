@@ -2,6 +2,9 @@ package chat
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -395,6 +398,143 @@ func (s *Service) DeleteGroup(ctx context.Context, requesterID, chatID uuid.UUID
 		return ErrPermissionDenied
 	}
 	return s.repo.DeleteChat(ctx, chatID)
+}
+
+// ============================================================
+// INVITE LINKS
+// ============================================================
+
+func (s *Service) GetOrGenerateInviteLink(ctx context.Context, requesterID, chatID uuid.UUID) (string, error) {
+	member, err := s.repo.GetMember(ctx, chatID, requesterID)
+	if err != nil {
+		return "", ErrNotMember
+	}
+	if member.Role != models.MemberRoleOwner && member.Role != models.MemberRoleAdmin {
+		return "", ErrPermissionDenied
+	}
+	chat, err := s.repo.GetChatByID(ctx, chatID)
+	if err != nil {
+		return "", err
+	}
+	if chat.InviteLink != nil && *chat.InviteLink != "" {
+		return *chat.InviteLink, nil
+	}
+	return s.generateInviteLink(ctx, chatID)
+}
+
+func (s *Service) RegenerateInviteLink(ctx context.Context, requesterID, chatID uuid.UUID) (string, error) {
+	member, err := s.repo.GetMember(ctx, chatID, requesterID)
+	if err != nil {
+		return "", ErrNotMember
+	}
+	if member.Role != models.MemberRoleOwner && member.Role != models.MemberRoleAdmin {
+		return "", ErrPermissionDenied
+	}
+	return s.generateInviteLink(ctx, chatID)
+}
+
+func (s *Service) generateInviteLink(ctx context.Context, chatID uuid.UUID) (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	link := "https://zlp.me/join/" + hex.EncodeToString(b)
+	if err := s.repo.SetInviteLink(ctx, chatID, link); err != nil {
+		return "", err
+	}
+	return link, nil
+}
+
+// ============================================================
+// PERMISSIONS
+// ============================================================
+
+func (s *Service) GetPermissions(ctx context.Context, userID, chatID uuid.UUID) (*models.ChatPermissions, error) {
+	if _, err := s.repo.GetMember(ctx, chatID, userID); err != nil {
+		return nil, ErrNotMember
+	}
+	chat, err := s.repo.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	perms := models.DefaultPermissions()
+	if chat.Permissions != nil {
+		_ = json.Unmarshal([]byte(*chat.Permissions), &perms)
+	}
+	return &perms, nil
+}
+
+func (s *Service) UpdatePermissions(ctx context.Context, requesterID, chatID uuid.UUID, perms models.ChatPermissions) error {
+	member, err := s.repo.GetMember(ctx, chatID, requesterID)
+	if err != nil {
+		return ErrNotMember
+	}
+	if member.Role != models.MemberRoleOwner && member.Role != models.MemberRoleAdmin {
+		return ErrPermissionDenied
+	}
+	b, err := json.Marshal(perms)
+	if err != nil {
+		return err
+	}
+	return s.repo.UpdatePermissions(ctx, chatID, string(b))
+}
+
+// ============================================================
+// ADMIN MANAGEMENT
+// ============================================================
+
+func (s *Service) SetMemberRole(ctx context.Context, requesterID, chatID, targetID uuid.UUID, role models.MemberRole, title *string) error {
+	requester, err := s.repo.GetMember(ctx, chatID, requesterID)
+	if err != nil {
+		return ErrNotMember
+	}
+	if requester.Role != models.MemberRoleOwner && requester.Role != models.MemberRoleAdmin {
+		return ErrPermissionDenied
+	}
+	// Only owner can promote to admin or demote admins
+	if role == models.MemberRoleAdmin || role == models.MemberRoleOwner {
+		if requester.Role != models.MemberRoleOwner {
+			return ErrPermissionDenied
+		}
+	}
+	target, err := s.repo.GetMember(ctx, chatID, targetID)
+	if err != nil {
+		return ErrNotMember
+	}
+	// Cannot change owner's role
+	if target.Role == models.MemberRoleOwner {
+		return ErrPermissionDenied
+	}
+	if err := s.repo.SetMemberRole(ctx, chatID, targetID, role, title); err != nil {
+		return err
+	}
+	// Log action
+	action := "promote"
+	if role == models.MemberRoleMember {
+		action = "demote"
+	}
+	_ = s.repo.LogAdminAction(ctx, &models.AdminAction{
+		ID:       uuid.New(),
+		ChatID:   chatID,
+		ActorID:  requesterID,
+		TargetID: &targetID,
+		Action:   action,
+	})
+	return nil
+}
+
+func (s *Service) GetAdminActions(ctx context.Context, userID, chatID uuid.UUID, limit int) ([]models.AdminAction, error) {
+	member, err := s.repo.GetMember(ctx, chatID, userID)
+	if err != nil {
+		return nil, ErrNotMember
+	}
+	if member.Role != models.MemberRoleOwner && member.Role != models.MemberRoleAdmin {
+		return nil, ErrPermissionDenied
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	return s.repo.GetAdminActions(ctx, chatID, limit)
 }
 
 func (s *Service) GetSharedFiles(ctx context.Context, userID, chatID uuid.UUID, limit, offset int) ([]models.Attachment, error) {

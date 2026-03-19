@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS admin_actions;
+ALTER TABLE chats DROP COLUMN IF EXISTS permissions;

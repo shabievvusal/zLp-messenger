@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/zlp-messenger/backend/internal/auth"
+	"github.com/zlp-messenger/backend/internal/models"
 )
 
 type Handler struct {
@@ -430,6 +431,136 @@ func (h *Handler) DeleteGroup(c *fiber.Ctx) error {
 	}
 
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// GET /api/chats/:chatID/invite-link
+func (h *Handler) GetInviteLink(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+	link, err := h.service.GetOrGenerateInviteLink(c.Context(), userID, chatID)
+	if err != nil {
+		switch err {
+		case ErrNotMember, ErrPermissionDenied:
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, "failed to get invite link")
+		}
+	}
+	return c.JSON(fiber.Map{"invite_link": link})
+}
+
+// POST /api/chats/:chatID/invite-link/reset
+func (h *Handler) ResetInviteLink(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+	link, err := h.service.RegenerateInviteLink(c.Context(), userID, chatID)
+	if err != nil {
+		switch err {
+		case ErrNotMember, ErrPermissionDenied:
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, "failed to reset invite link")
+		}
+	}
+	return c.JSON(fiber.Map{"invite_link": link})
+}
+
+// GET /api/chats/:chatID/permissions
+func (h *Handler) GetPermissions(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+	perms, err := h.service.GetPermissions(c.Context(), userID, chatID)
+	if err != nil {
+		return fiber.NewError(fiber.StatusForbidden, err.Error())
+	}
+	return c.JSON(perms)
+}
+
+// PATCH /api/chats/:chatID/permissions
+func (h *Handler) UpdatePermissions(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+	var perms models.ChatPermissions
+	if err := c.BodyParser(&perms); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid body")
+	}
+	if err := h.service.UpdatePermissions(c.Context(), userID, chatID, perms); err != nil {
+		switch err {
+		case ErrNotMember, ErrPermissionDenied:
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, "failed to update permissions")
+		}
+	}
+	if h.notifier != nil {
+		h.notifier.BroadcastChat(chatID, "permissions_updated", perms, nil)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// PATCH /api/chats/:chatID/members/:userID/role
+func (h *Handler) SetMemberRole(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+	targetID, err := uuid.Parse(c.Params("userID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid user id")
+	}
+	var body struct {
+		Role  string  `json:"role"`
+		Title *string `json:"title"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid body")
+	}
+	role := models.MemberRole(body.Role)
+	if role != models.MemberRoleAdmin && role != models.MemberRoleMember {
+		return fiber.NewError(fiber.StatusBadRequest, "role must be admin or member")
+	}
+	if err := h.service.SetMemberRole(c.Context(), userID, chatID, targetID, role, body.Title); err != nil {
+		switch err {
+		case ErrNotMember, ErrPermissionDenied:
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, "failed to set role")
+		}
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// GET /api/chats/:chatID/admin-actions
+func (h *Handler) GetAdminActions(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+	limit, _ := strconv.Atoi(c.Query("limit", "50"))
+	actions, err := h.service.GetAdminActions(c.Context(), userID, chatID, limit)
+	if err != nil {
+		switch err {
+		case ErrNotMember, ErrPermissionDenied:
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, "failed to get admin actions")
+		}
+	}
+	return c.JSON(actions)
 }
 
 // GET /api/chats/:chatID/messages/search

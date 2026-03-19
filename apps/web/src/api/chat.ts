@@ -59,6 +59,45 @@ export const chatApi = {
   kickMember: (chatId: string, userId: string) =>
     api.delete(`/chats/${chatId}/members/${userId}`),
 
+  setMemberRole: (chatId: string, userId: string, role: 'admin' | 'member', title?: string) =>
+    api.patch(`/chats/${chatId}/members/${userId}/role`, { role, title }),
+
   leaveChat: (chatId: string) =>
     api.delete(`/chats/${chatId}/leave`),
+
+  getInviteLink: (chatId: string) =>
+    api.get<{ invite_link: string }>(`/chats/${chatId}/invite-link`),
+
+  resetInviteLink: (chatId: string) =>
+    api.post<{ invite_link: string }>(`/chats/${chatId}/invite-link/reset`),
+
+  getPermissions: (chatId: string) =>
+    api.get<ChatPermissions>(`/chats/${chatId}/permissions`),
+
+  updatePermissions: (chatId: string, perms: ChatPermissions) =>
+    api.patch(`/chats/${chatId}/permissions`, perms),
+
+  getAdminActions: (chatId: string, limit = 50) =>
+    api.get<AdminAction[]>(`/chats/${chatId}/admin-actions`, { params: { limit } }),
+}
+
+export interface ChatPermissions {
+  can_send_messages: boolean
+  can_send_media: boolean
+  can_add_members: boolean
+  can_pin_messages: boolean
+  can_change_info: boolean
+  can_invite_users: boolean
+}
+
+export interface AdminAction {
+  id: string
+  chat_id: string
+  actor_id: string
+  target_id?: string
+  action: string
+  details?: string
+  created_at: string
+  actor?: { id: string; username: string; first_name: string; last_name?: string; avatar_url?: string }
+  target?: { id: string; username: string; first_name: string; last_name?: string; avatar_url?: string }
 }
