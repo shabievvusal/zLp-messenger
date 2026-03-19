@@ -13,7 +13,8 @@ import { mediaUrl } from '@/utils/media'
 interface Props {
   msg: Message
   isOwn: boolean
-  isGrouped: boolean  // same sender as previous — no avatar/name needed
+  isGrouped: boolean      // same sender as previous — no name header
+  isLastInGroup: boolean  // next message is from different sender — show avatar
   chatType: ChatType
 }
 
@@ -28,7 +29,7 @@ function parseMentions(text: string): React.ReactNode {
   )
 }
 
-export function MessageBubble({ msg, isOwn, isGrouped, chatType }: Props) {
+export function MessageBubble({ msg, isOwn, isGrouped, isLastInGroup, chatType }: Props) {
   // Service messages — centered pill, no bubble
   if (msg.type === 'service') {
     return (
@@ -156,10 +157,10 @@ export function MessageBubble({ msg, isOwn, isGrouped, chatType }: Props) {
         </div>
       )}
 
-      {/* Avatar slot — always 28px wide so own/incoming bubbles stay aligned */}
+      {/* Avatar slot — always 28px wide so bubbles align; avatar shown on last msg in a sequence */}
       {!isSelecting && (
         <div className="w-7 flex-shrink-0 self-end">
-          {!isOwn && !isGrouped && (
+          {isLastInGroup && (
             <Avatar
               name={msg.sender
                 ? `${msg.sender.first_name}${msg.sender.last_name ? ' ' + msg.sender.last_name : ''}`

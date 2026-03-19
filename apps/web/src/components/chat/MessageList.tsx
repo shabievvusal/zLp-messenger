@@ -109,13 +109,15 @@ export function MessageList({ chatId, chatType, onLoadMore }: Props) {
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto py-4 px-4 space-y-0.5 scrollbar-thin flex flex-col"
+        className="h-full overflow-y-auto py-2 px-4 scrollbar-thin flex flex-col"
       >
         {messages.map((msg, idx) => {
           const prev = messages[idx - 1]
+          const next = messages[idx + 1]
           const showDate = !prev || !isSameDay(new Date(msg.created_at), new Date(prev.created_at))
           const isOwn = msg.sender_id === currentUser?.id
 
+          // Grouped with previous = same sender within 5 min, no date divider — skip name header
           const isGrouped = !showDate &&
             msg.type !== 'service' &&
             !!prev &&
@@ -123,13 +125,28 @@ export function MessageList({ chatId, chatType, onLoadMore }: Props) {
             prev.sender_id === msg.sender_id &&
             differenceInMinutes(new Date(msg.created_at), new Date(prev.created_at)) < 5
 
+          // Last in sequence = next message is from a different sender (or no next) — show avatar here
+          const isLastInGroup = msg.type !== 'service' && (
+            !next ||
+            next.type === 'service' ||
+            next.sender_id !== msg.sender_id ||
+            !isSameDay(new Date(msg.created_at), new Date(next.created_at)) ||
+            differenceInMinutes(new Date(next.created_at), new Date(msg.created_at)) >= 5
+          )
+
           return (
             <div key={msg.id} data-msgid={msg.id}>
               {showDate && (
                 <DateDivider date={format(new Date(msg.created_at), 'd MMMM yyyy', { locale: ru })} />
               )}
-              <div className={isGrouped ? 'mt-0.5' : 'mt-3'}>
-                <MessageBubble msg={msg} isOwn={isOwn} isGrouped={isGrouped} chatType={chatType} />
+              <div className={isGrouped ? 'mt-px' : 'mt-1.5'}>
+                <MessageBubble
+                  msg={msg}
+                  isOwn={isOwn}
+                  isGrouped={isGrouped}
+                  isLastInGroup={isLastInGroup}
+                  chatType={chatType}
+                />
               </div>
             </div>
           )
