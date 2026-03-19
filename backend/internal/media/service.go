@@ -56,8 +56,8 @@ func (s *Service) Upload(ctx context.Context, file *multipart.FileHeader, userID
 		return nil, fmt.Errorf("upload to minio: %w", err)
 	}
 
-	url := fmt.Sprintf("http://%s/%s/%s",
-		viper.GetString("MINIO_ENDPOINT"), s.bucket, objectName)
+	// Use a proxy-relative URL so the browser fetches through nginx (/media/ → minio:9000)
+	url := fmt.Sprintf("/media/%s/%s", s.bucket, objectName)
 
 	return &UploadResult{
 		URL:      url,
@@ -85,13 +85,18 @@ func (s *Service) UploadAvatar(ctx context.Context, file *multipart.FileHeader, 
 		return "", err
 	}
 
-	return fmt.Sprintf("http://%s/%s/%s",
-		viper.GetString("MINIO_ENDPOINT"), s.bucket, objectName), nil
+	return fmt.Sprintf("/media/%s/%s", s.bucket, objectName), nil
 }
 
 func detectType(mimeType, filename string) models.AttachmentType {
 	mime := strings.ToLower(mimeType)
 	ext := strings.ToLower(filepath.Ext(filename))
+	base := strings.ToLower(filepath.Base(filename))
+
+	// Voice recordings are named voice_*.ext by the frontend recorder
+	if strings.HasPrefix(base, "voice_") {
+		return models.AttachmentTypeVoice
+	}
 
 	switch {
 	case strings.HasPrefix(mime, "image/gif") || ext == ".gif":
@@ -100,7 +105,9 @@ func detectType(mimeType, filename string) models.AttachmentType {
 		return models.AttachmentTypePhoto
 	case strings.HasPrefix(mime, "video/"):
 		return models.AttachmentTypeVideo
-	case mime == "audio/ogg" || mime == "audio/webm" || ext == ".ogg":
+	// audio/webm;codecs=opus, audio/ogg;codecs=opus, audio/webm, audio/ogg, .webm, .ogg
+	case strings.HasPrefix(mime, "audio/webm") || strings.HasPrefix(mime, "audio/ogg") ||
+		ext == ".ogg" || ext == ".webm":
 		return models.AttachmentTypeVoice
 	case strings.HasPrefix(mime, "audio/"):
 		return models.AttachmentTypeAudio
