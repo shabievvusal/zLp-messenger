@@ -140,6 +140,7 @@ func (h *Hub) handleEvent(c *Client, event IncomingEvent) {
 		// Caller → Hub → Callee: call_incoming
 		targetID := parseUUID(event.Payload, "target_user_id")
 		if targetID == uuid.Nil {
+			log.Printf("ws: call_initiate from %s — bad target_user_id payload: %v", c.UserID, event.Payload)
 			return
 		}
 		callID, _ := event.Payload["call_id"].(string)
@@ -147,8 +148,13 @@ func (h *Hub) handleEvent(c *Client, event IncomingEvent) {
 			callID = uuid.New().String()
 		}
 		callType, _ := event.Payload["call_type"].(string)
-
 		callerName, _ := event.Payload["caller_name"].(string)
+
+		h.mu.RLock()
+		_, targetOnline := h.clients[targetID]
+		h.mu.RUnlock()
+		log.Printf("ws: call_initiate caller=%s target=%s online=%v callID=%s", c.UserID, targetID, targetOnline, callID)
+
 		h.SendToUser(targetID, OutgoingEvent{
 			Type: EventCallIncoming,
 			Payload: map[string]any{

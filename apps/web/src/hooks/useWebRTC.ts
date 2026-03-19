@@ -76,8 +76,9 @@ export function useWebRTC(send: SendFn) {
     callerId: string,
     offer: RTCSessionDescriptionInit,
     type: 'voice' | 'video',
+    existingStream?: MediaStream,
   ) => {
-    const stream = await getLocalStream(type)
+    const stream = existingStream ?? await getLocalStream(type)
     updateActive({ localStream: stream })
 
     const pc = createPC(callId, callerId)
@@ -137,10 +138,24 @@ export function useWebRTC(send: SendFn) {
     updateActive({ isVideoOff })
   }, [updateActive])
 
-  return { startCall, answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo }
+  // ── Send offer using existing stream (for caller after call_accepted) ──
+
+  const sendOffer = useCallback(async (
+    callId: string,
+    targetId: string,
+    stream: MediaStream,
+  ) => {
+    const pc = createPC(callId, targetId)
+    stream.getTracks().forEach((t) => pc.addTrack(t, stream))
+    const offer = await pc.createOffer()
+    await pc.setLocalDescription(offer)
+    send('webrtc_offer', { target_user_id: targetId, call_id: callId, data: offer })
+  }, [createPC, send])
+
+  return { startCall, answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo, sendOffer }
 }
 
-async function getLocalStream(type: 'voice' | 'video'): Promise<MediaStream> {
+export async function getLocalStream(type: 'voice' | 'video'): Promise<MediaStream> {
   return navigator.mediaDevices.getUserMedia({
     audio: true,
     video: type === 'video' ? { width: 1280, height: 720, facingMode: 'user' } : false,

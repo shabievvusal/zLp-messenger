@@ -1,12 +1,18 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { Sidebar } from '@/components/sidebar/Sidebar'
 import { ChatWindow } from '@/components/chat/ChatWindow'
 import { EmptyChat } from '@/components/chat/EmptyChat'
 import { IncomingCallModal } from '@/components/call/IncomingCallModal'
 import { ActiveCallScreen } from '@/components/call/ActiveCallScreen'
-import { useWebSocket, registerWebRTCHandler, registerCallAcceptedHandler, getBufferedOffer, clearBufferedOffer } from '@/hooks/useWebSocket'
-import { useWebRTC } from '@/hooks/useWebRTC'
+import {
+  useWebSocket,
+  registerWebRTCHandler,
+  registerCallAcceptedHandler,
+  getBufferedOffer,
+  clearBufferedOffer,
+} from '@/hooks/useWebSocket'
+import { useWebRTC, getLocalStream } from '@/hooks/useWebRTC'
 import { useChatStore } from '@/store/chat'
 import { useCallStore } from '@/store/call'
 import { useAuthStore } from '@/store/auth'
@@ -17,66 +23,125 @@ export function MessengerPage() {
   const setChats = useChatStore((s) => s.setChats)
   const currentUser = useAuthStore((s) => s.user)
   const { send } = useWebSocket()
-  const { startCall, answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo } = useWebRTC(send)
+  const { answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo, sendOffer } = useWebRTC(send)
 
   const incoming = useCallStore((s) => s.incoming)
   const active = useCallStore((s) => s.active)
   const setIncoming = useCallStore((s) => s.setIncoming)
   const setActive = useCallStore((s) => s.setActive)
+  const updateActive = useCallStore((s) => s.updateActive)
   const clearAll = useCallStore((s) => s.clearAll)
+
+  // Таймаут звонка — если нет ответа 45 сек, вешаем трубку
+  const callTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
+
   useEffect(() => {
     chatApi.getChats()
       .then(({ data }) => setChats(data ?? []))
       .catch(() => setChats([]))
   }, [])
 
-  // Wire WebRTC signaling through the WS handler (caller side: answer + ice only)
+  // WebRTC signaling — caller side (answer + ice)
   useEffect(() => {
     registerWebRTCHandler(async (subType, _from, data) => {
+      console.log('[WebRTC] received:', subType)
       if (subType === 'webrtc_answer') await handleAnswer(data as RTCSessionDescriptionInit)
       else if (subType === 'webrtc_ice') await handleICE(data as RTCIceCandidateInit)
     })
     return () => registerWebRTCHandler(null)
   }, [handleAnswer, handleICE])
 
-  // Initiate an outgoing call
+  // ── Исходящий звонок ────────────────────────────────────────
   const handleStartCall = useCallback(async (targetId: string, targetName: string, type: 'voice' | 'video') => {
     const callId = generateId()
     const callerName = currentUser
       ? `${currentUser.first_name}${currentUser.last_name ? ' ' + currentUser.last_name : ''}`
       : 'Unknown'
-    setActive({ callId, targetId, targetName, type, status: 'ringing', isMuted: false, isVideoOff: false, isSpeakerOn: true, localStream: null, remoteStream: null })
+
+    // 1. Сразу запрашиваем разрешения на микрофон/камеру
+    let stream: MediaStream
+    try {
+      stream = await getLocalStream(type)
+    } catch (err) {
+      console.error('[Call] media access denied:', err)
+      alert('Не удалось получить доступ к микрофону/камере. Проверьте разрешения в браузере.')
+      return
+    }
+
+    // 2. Показываем UI звонка с локальным стримом
+    setActive({
+      callId, targetId, targetName, type,
+      status: 'ringing',
+      isMuted: false, isVideoOff: false, isSpeakerOn: true,
+      localStream: stream, remoteStream: null,
+    })
+
+    // 3. Уведомляем другого пользователя
+    console.log('[Call] initiating call to', targetId)
     send('call_initiate', { target_user_id: targetId, call_id: callId, call_type: type, caller_name: callerName })
 
-    // When callee accepts → THEN send WebRTC offer
+    // 4. Таймаут 45 сек — нет ответа → сбрасываем
+    clearTimeout(callTimeoutRef.current)
+    callTimeoutRef.current = setTimeout(() => {
+      const cur = useCallStore.getState().active
+      if (cur?.callId === callId && cur.status === 'ringing') {
+        send('call_end', { target_id: targetId, call_id: callId })
+        stream.getTracks().forEach((t) => t.stop())
+        clearAll()
+      }
+    }, 45_000)
+
+    // 5. Когда callee принимает → отправляем WebRTC offer
     registerCallAcceptedHandler(async () => {
       registerCallAcceptedHandler(null)
-      await startCall(callId, targetId, type)
+      clearTimeout(callTimeoutRef.current)
+      console.log('[Call] accepted, sending WebRTC offer')
+      await sendOffer(callId, targetId, stream)
     })
-  }, [send, startCall, setActive, currentUser])
+  }, [send, sendOffer, setActive, clearAll, currentUser])
 
-  // Accept incoming call
+  // ── Принять входящий звонок ────────────────────────────────
   const handleAccept = useCallback(async (type: 'voice' | 'video') => {
     if (!incoming) return
-    const snap = incoming // snapshot to avoid stale closure
-    setActive({ callId: snap.callId, targetId: snap.callerId, targetName: snap.callerName, type, status: 'connecting', isMuted: false, isVideoOff: false, isSpeakerOn: true, localStream: null, remoteStream: null })
+    const snap = incoming
+
+    // 1. Запрашиваем разрешения
+    let stream: MediaStream
+    try {
+      stream = await getLocalStream(type)
+    } catch (err) {
+      console.error('[Call] media access denied:', err)
+      alert('Не удалось получить доступ к микрофону/камере.')
+      return
+    }
+
+    // 2. Показываем UI
+    setActive({
+      callId: snap.callId, targetId: snap.callerId, targetName: snap.callerName,
+      type, status: 'connecting',
+      isMuted: false, isVideoOff: false, isSpeakerOn: true,
+      localStream: stream, remoteStream: null,
+    })
     setIncoming(null)
+
+    // 3. Отвечаем серверу
     send('call_accept', { caller_id: snap.callerId, call_id: snap.callId })
 
+    // 4. Обрабатываем WebRTC offer (может прийти до или после accept)
     const doAnswer = async (data: unknown) => {
-      await answerCall(snap.callId, snap.callerId, data as RTCSessionDescriptionInit, type)
+      console.log('[Call] answering offer')
+      await answerCall(snap.callId, snap.callerId, data as RTCSessionDescriptionInit, type, stream)
       registerWebRTCHandler(async (subType, _from, d) => {
         if (subType === 'webrtc_ice') await handleICE(d as RTCIceCandidateInit)
       })
     }
 
-    // Register handler for offer that may come after accept
     registerWebRTCHandler(async (subType, _from, data) => {
       if (subType === 'webrtc_offer') await doAnswer(data)
       else if (subType === 'webrtc_ice') await handleICE(data as RTCIceCandidateInit)
     })
 
-    // If offer already buffered before accept, process now
+    // Если offer уже пришёл до нажатия "принять"
     const buffered = getBufferedOffer()
     if (buffered && buffered.callId === snap.callId && buffered.subType === 'webrtc_offer') {
       clearBufferedOffer()
@@ -84,15 +149,16 @@ export function MessengerPage() {
     }
   }, [incoming, send, answerCall, handleICE, setActive, setIncoming])
 
-  // Decline incoming call
+  // ── Отклонить ──────────────────────────────────────────────
   const handleDecline = useCallback(() => {
     if (!incoming) return
     send('call_decline', { caller_id: incoming.callerId, call_id: incoming.callId })
     clearAll()
   }, [incoming, send, clearAll])
 
-  // Hang up active call
+  // ── Завершить ──────────────────────────────────────────────
   const handleHangup = useCallback(() => {
+    clearTimeout(callTimeoutRef.current)
     hangup()
     clearAll()
   }, [hangup, clearAll])
@@ -107,7 +173,6 @@ export function MessengerPage() {
         </Routes>
       </main>
 
-      {/* Call overlays */}
       {incoming && (
         <IncomingCallModal onAccept={handleAccept} onDecline={handleDecline} />
       )}
