@@ -2,6 +2,7 @@ package auth
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/zlp-messenger/backend/internal/models"
 )
 
 type SearchHandler struct {
@@ -24,9 +25,7 @@ func (h *SearchHandler) SearchUsers(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, "search failed")
 	}
 	if users == nil {
-		users = []PublicUserResult{}
+		users = []models.PublicUser{}
 	}
 	return c.JSON(users)
 }
-
-type PublicUserResult = interface{}
