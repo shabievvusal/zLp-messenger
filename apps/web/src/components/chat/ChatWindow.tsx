@@ -11,6 +11,7 @@ import { ChatInfoPanel } from './ChatInfoPanel'
 import { ForwardModal } from './ForwardModal'
 import { ChatProvider, useChatCtx } from '@/contexts/ChatContext'
 import { useGroupCallStore } from '@/store/groupCall'
+import { markChatRead } from '@/hooks/useWebSocket'
 import type { Message } from '@/types'
 
 const PAGE_SIZE = 50
@@ -32,7 +33,7 @@ export function ChatWindow({ onStartCall, onStartGroupCall, onJoinGroupCall }: P
 
 function ChatWindowInner({ onStartCall, onStartGroupCall, onJoinGroupCall }: Props) {
   const { chatId } = useParams<{ chatId: string }>()
-  const { setMessages, prependMessages, clearUnread, chats } = useChatStore()
+  const { setMessages, prependMessages, clearUnread, setActiveChat, chats } = useChatStore()
   const currentUser = useAuthStore((s) => s.user)
   const chat = chats.find((c) => c.id === chatId)
   const prevChatId = useRef<string>()
@@ -62,6 +63,8 @@ function ChatWindowInner({ onStartCall, onStartGroupCall, onJoinGroupCall }: Pro
       }
       if (data.length < PAGE_SIZE) setHasMore(false)
       clearUnread(id)
+      // Tell backend we've read messages up to the last one
+      if (sorted.length > 0) markChatRead(sorted[sorted.length - 1].id)
     } catch { /* ignore */ }
   }, [])
 
@@ -71,6 +74,7 @@ function ChatWindowInner({ onStartCall, onStartGroupCall, onJoinGroupCall }: Pro
     setOffset(0)
     setHasMore(true)
     clearSelection()
+    setActiveChat(chatId)
     loadMessages(chatId, 0)
 
     // For group/channel chats: check if there's an active group call
@@ -90,6 +94,7 @@ function ChatWindowInner({ onStartCall, onStartGroupCall, onJoinGroupCall }: Pro
         })
         .catch(() => {})
     }
+    return () => { setActiveChat(null) }
   }, [chatId])
 
   const handleLoadMore = useCallback(async () => {

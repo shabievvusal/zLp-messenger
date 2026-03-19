@@ -55,6 +55,12 @@ export { _groupJoinedHandlers }
 let _groupMemberLeftHandler: ((userId: string) => void) | null = null
 export function registerGroupMemberLeftHandler(fn: ((userId: string) => void) | null) { _groupMemberLeftHandler = fn }
 
+// Module-level send — set by the hook so other modules can send WS events
+let _wsSend: ((type: string, payload: unknown) => void) | null = null
+export function markChatRead(lastMessageId: string) {
+  _wsSend?.('mark_read', { message_id: lastMessageId })
+}
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<ReturnType<typeof setTimeout>>()
@@ -92,6 +98,9 @@ export function useWebSocket() {
         const isActiveChat = msg.chat_id === activeChatIdRef.current
         if (!isActiveChat) {
           incrementUnread(msg.chat_id)
+        } else {
+          // Message is visible — tell server it's been read
+          send('mark_read', { message_id: msg.id })
         }
         // Browser notification when tab is hidden or user is in different chat
         if ((!isActiveChat || document.hidden) && canNotify()) {
@@ -267,6 +276,12 @@ export function useWebSocket() {
       wsRef.current.send(JSON.stringify({ type, payload }))
     }
   }, [])
+
+  // Expose send at module level so markChatRead() can be called from anywhere
+  useEffect(() => {
+    _wsSend = send
+    return () => { _wsSend = null }
+  }, [send])
 
   const sendTyping = useCallback((chatId: string) => send('typing', { chat_id: chatId }), [send])
   const sendStopTyping = useCallback((chatId: string) => send('stop_typing', { chat_id: chatId }), [send])

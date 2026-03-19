@@ -21,9 +21,11 @@ export interface ActiveCall {
   isMuted: boolean
   isVideoOff: boolean
   isSpeakerOn: boolean
+  isScreenSharing: boolean
   startedAt?: number
   localStream: MediaStream | null
   remoteStream: MediaStream | null
+  screenStream: MediaStream | null
 }
 
 interface CallState {
@@ -46,9 +48,9 @@ export const useCallStore = create<CallState>((set) => ({
     set((s) => s.active ? { active: { ...s.active, ...patch } } : s),
   clearAll: () =>
     set((s) => {
-      // Stop all media tracks so the camera/mic indicator turns off
       s.active?.localStream?.getTracks().forEach((t) => t.stop())
       s.active?.remoteStream?.getTracks().forEach((t) => t.stop())
+      s.active?.screenStream?.getTracks().forEach((t) => t.stop())
       return { incoming: null, active: null }
     }),
 }))

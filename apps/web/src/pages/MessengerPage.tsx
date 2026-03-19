@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef, useState, memo } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import { Sidebar } from '@/components/sidebar/Sidebar'
 import { ChatWindow } from '@/components/chat/ChatWindow'
 import { EmptyChat } from '@/components/chat/EmptyChat'
@@ -27,8 +27,11 @@ import { useGroupCallStore } from '@/store/groupCall'
 import { useAuthStore } from '@/store/auth'
 import { chatApi } from '@/api/chat'
 import { generateId } from '@/utils/uuid'
+import { SettingsPage } from '@/pages/settings/SettingsPage'
 
 export function MessengerPage() {
+  const location = useLocation()
+  const inSettings = location.pathname === '/settings' || location.pathname.startsWith('/settings/')
   const setChats = useChatStore((s) => s.setChats)
   const currentUser = useAuthStore((s) => s.user)
   const { send } = useWebSocket()
@@ -220,8 +223,8 @@ export function MessengerPage() {
       callId, targetId, targetName, type,
       status: 'ringing',
       isInitiator: true,
-      isMuted: false, isVideoOff: false, isSpeakerOn: true,
-      localStream: stream, remoteStream: null,
+      isMuted: false, isVideoOff: false, isSpeakerOn: true, isScreenSharing: false,
+      localStream: stream, remoteStream: null, screenStream: null,
     })
 
     // 3. Уведомляем другого пользователя
@@ -273,8 +276,8 @@ export function MessengerPage() {
       callId: snap.callId, targetId: snap.callerId, targetName: snap.callerName,
       type, status: 'connecting',
       isInitiator: false,
-      isMuted: false, isVideoOff: false, isSpeakerOn: true,
-      localStream: stream, remoteStream: null,
+      isMuted: false, isVideoOff: false, isSpeakerOn: true, isScreenSharing: false,
+      localStream: stream, remoteStream: null, screenStream: null,
     })
     setIncoming(null)
 
@@ -320,10 +323,11 @@ export function MessengerPage() {
 
   return (
     <div className="flex h-full bg-white dark:bg-surface-dark overflow-hidden">
-      <Sidebar />
+      {!inSettings && <Sidebar />}
       <main className="flex-1 flex flex-col overflow-hidden">
         <Routes>
           <Route path="/" element={<EmptyChat />} />
+          <Route path="settings/*" element={<SettingsPage />} />
           <Route path="chat/:chatId" element={
             <ChatWindow
               onStartCall={handleStartCall}

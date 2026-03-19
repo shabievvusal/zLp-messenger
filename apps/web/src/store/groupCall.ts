@@ -25,6 +25,7 @@ interface GroupCallState {
     isMuted: boolean
     isVideoOff: boolean
     isMinimized: boolean
+    isScreenSharing: boolean
     participants: GroupParticipant[]
   } | null
 
@@ -42,6 +43,7 @@ interface GroupCallState {
   setMuted: (b: boolean) => void
   setVideoOff: (b: boolean) => void
   setMinimized: (b: boolean) => void
+  setScreenSharing: (b: boolean) => void
   leaveCall: () => void
 }
 
@@ -85,7 +87,7 @@ export const useGroupCallStore = create<GroupCallState>((set, get) => ({
     set({
       active: {
         callId, chatId, localStream,
-        isMuted: false, isVideoOff: false, isMinimized: false,
+        isMuted: false, isVideoOff: false, isMinimized: false, isScreenSharing: false,
         participants: [],
       },
     }),
@@ -135,6 +137,9 @@ export const useGroupCallStore = create<GroupCallState>((set, get) => ({
 
   setMinimized: (isMinimized) =>
     set((s) => s.active ? { active: { ...s.active, isMinimized } } : s),
+
+  setScreenSharing: (isScreenSharing) =>
+    set((s) => s.active ? { active: { ...s.active, isScreenSharing } } : s),
 
   leaveCall: () =>
     set((s) => {

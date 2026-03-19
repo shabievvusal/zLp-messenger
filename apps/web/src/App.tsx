@@ -5,7 +5,6 @@ import { authApi } from '@/api/auth'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
 import { MessengerPage } from '@/pages/MessengerPage'
-import { SettingsPage } from '@/pages/settings/SettingsPage'
 import { useNotificationPermission } from '@/hooks/useNotificationPermission'
 import { registerNavigateToChat } from '@/hooks/useWebSocket'
 
@@ -59,7 +58,6 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
-      <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
       <Route path="/*" element={<PrivateRoute><MessengerPage /></PrivateRoute>} />
     </Routes>
   )

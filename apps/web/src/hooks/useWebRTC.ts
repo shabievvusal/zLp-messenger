@@ -32,6 +32,8 @@ export function useWebRTC(send: SendFn) {
   const connectTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
   const callIdRef = useRef<string>('')
   const targetIdRef = useRef<string>('')
+  const screenStreamRef = useRef<MediaStream | null>(null)
+  const screenSenderRef = useRef<RTCRtpSender | null>(null)
 
   const updateActive = useCallStore((s) => s.updateActive)
 
@@ -106,6 +108,24 @@ export function useWebRTC(send: SendFn) {
         clearTimeout(connectTimeoutRef.current)
         updateActive({ remoteStream, status: 'active', startedAt: Date.now() })
       }
+    }
+
+    // Renegotiation (e.g. screen share track added mid-call).
+    // Only the initiator sends new offers; callee side answers via handleRenegotiationOffer.
+    pc.onnegotiationneeded = async () => {
+      const callState = useCallStore.getState().active
+      if (!callState?.isInitiator || callState.status !== 'active') return
+      if (pc !== pcRef.current || pc.signalingState !== 'stable') return
+      try {
+        const offer = await pc.createOffer()
+        if (pc.signalingState !== 'stable') return
+        await pc.setLocalDescription(offer)
+        send('webrtc_offer', {
+          target_user_id: targetIdRef.current,
+          call_id: callIdRef.current,
+          data: offer,
+        })
+      } catch { /* ignore */ }
     }
 
     pc.onconnectionstatechange = () => {
@@ -270,11 +290,80 @@ export function useWebRTC(send: SendFn) {
   const closePeerConnection = useCallback(() => {
     clearTimeout(reconnectTimerRef.current)
     clearTimeout(connectTimeoutRef.current)
+    screenStreamRef.current?.getTracks().forEach((t) => t.stop())
+    screenStreamRef.current = null
+    screenSenderRef.current = null
     pcRef.current?.close()
     pcRef.current = null
   }, [])
 
-  return { answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo, sendOffer, closePeerConnection }
+  // ── Renegotiation offer from initiator (callee handles this) ──
+
+  const handleRenegotiationOffer = useCallback(async (offer: RTCSessionDescriptionInit) => {
+    const pc = pcRef.current
+    const active = useCallStore.getState().active
+    if (!pc || !active || pc.signalingState === 'closed') return
+    await pc.setRemoteDescription(new RTCSessionDescription(offer))
+    const answer = await pc.createAnswer()
+    await pc.setLocalDescription(answer)
+    send('webrtc_answer', { target_user_id: active.targetId, call_id: active.callId, data: answer })
+  }, [send])
+
+  // ── Screen sharing ─────────────────────────────────────────
+
+  const stopScreenShare = useCallback(async () => {
+    const active = useCallStore.getState().active
+    screenStreamRef.current?.getTracks().forEach((t) => t.stop())
+    screenStreamRef.current = null
+
+    const pc = pcRef.current
+    const sender = screenSenderRef.current
+    if (pc && sender) {
+      const cameraVideoTrack = active?.localStream?.getVideoTracks()[0]
+      if (cameraVideoTrack) {
+        await sender.replaceTrack(cameraVideoTrack).catch(() => {})
+      } else {
+        pc.removeTrack(sender)
+      }
+    }
+    screenSenderRef.current = null
+    updateActive({ isScreenSharing: false, screenStream: null })
+  }, [updateActive])
+
+  const toggleScreenShare = useCallback(async () => {
+    const active = useCallStore.getState().active
+    if (!active) return
+
+    if (active.isScreenSharing) {
+      await stopScreenShare()
+      return
+    }
+
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+      screenStreamRef.current = screenStream
+      const screenTrack = screenStream.getVideoTracks()[0]
+
+      const pc = pcRef.current
+      if (pc && screenTrack) {
+        const existingSender = pc.getSenders().find((s) => s.track?.kind === 'video')
+        if (existingSender) {
+          await existingSender.replaceTrack(screenTrack)
+          screenSenderRef.current = existingSender
+        } else {
+          screenSenderRef.current = pc.addTrack(screenTrack, screenStream)
+        }
+        screenTrack.onended = () => { stopScreenShare() }
+      }
+      updateActive({ isScreenSharing: true, screenStream })
+    } catch {
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop())
+      screenStreamRef.current = null
+    }
+  }, [stopScreenShare, updateActive])
+
+  return { answerCall, handleAnswer, handleICE, hangup, toggleMute, toggleVideo, sendOffer,
+    closePeerConnection, handleRenegotiationOffer, toggleScreenShare }
 }
 
 export async function getLocalStream(type: 'voice' | 'video'): Promise<MediaStream> {
