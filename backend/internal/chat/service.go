@@ -375,6 +375,28 @@ func (s *Service) GetSharedMedia(ctx context.Context, userID, chatID uuid.UUID, 
 	return s.repo.GetSharedMedia(ctx, chatID, limit, offset)
 }
 
+func (s *Service) UpdateGroup(ctx context.Context, requesterID, chatID uuid.UUID, title, description *string, isPublic *bool) error {
+	member, err := s.repo.GetMember(ctx, chatID, requesterID)
+	if err != nil {
+		return ErrNotMember
+	}
+	if member.Role != models.MemberRoleOwner && member.Role != models.MemberRoleAdmin {
+		return ErrPermissionDenied
+	}
+	return s.repo.UpdateChat(ctx, chatID, title, description, isPublic)
+}
+
+func (s *Service) DeleteGroup(ctx context.Context, requesterID, chatID uuid.UUID) error {
+	member, err := s.repo.GetMember(ctx, chatID, requesterID)
+	if err != nil {
+		return ErrNotMember
+	}
+	if member.Role != models.MemberRoleOwner {
+		return ErrPermissionDenied
+	}
+	return s.repo.DeleteChat(ctx, chatID)
+}
+
 func (s *Service) GetSharedFiles(ctx context.Context, userID, chatID uuid.UUID, limit, offset int) ([]models.Attachment, error) {
 	if _, err := s.repo.GetMember(ctx, chatID, userID); err != nil {
 		return nil, ErrNotMember

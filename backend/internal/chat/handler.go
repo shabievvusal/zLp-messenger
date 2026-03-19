@@ -374,6 +374,64 @@ func (h *Handler) KickMember(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+// PATCH /api/chats/:chatID
+func (h *Handler) UpdateGroup(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+
+	var body struct {
+		Title       *string `json:"title"`
+		Description *string `json:"description"`
+		IsPublic    *bool   `json:"is_public"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid body")
+	}
+
+	if err := h.service.UpdateGroup(c.Context(), userID, chatID, body.Title, body.Description, body.IsPublic); err != nil {
+		switch err {
+		case ErrNotMember, ErrPermissionDenied:
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, "failed to update group")
+		}
+	}
+
+	if h.notifier != nil {
+		h.notifier.BroadcastChat(chatID, "chat_updated", map[string]any{
+			"chat_id":     chatID,
+			"title":       body.Title,
+			"description": body.Description,
+			"is_public":   body.IsPublic,
+		}, nil)
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// DELETE /api/chats/:chatID
+func (h *Handler) DeleteGroup(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+
+	if err := h.service.DeleteGroup(c.Context(), userID, chatID); err != nil {
+		switch err {
+		case ErrNotMember, ErrPermissionDenied:
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		default:
+			return fiber.NewError(fiber.StatusInternalServerError, "failed to delete group")
+		}
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 // GET /api/chats/:chatID/messages/search
 func (h *Handler) SearchMessages(c *fiber.Ctx) error {
 	userID := auth.GetUserIDFromCtx(c)

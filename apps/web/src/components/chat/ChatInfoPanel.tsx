@@ -8,6 +8,7 @@ import { useChatStore } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
 import { UserProfilePanel } from './UserProfilePanel'
+import { GroupSettingsPanel } from './GroupSettingsPanel'
 import { mediaUrl } from '@/utils/media'
 
 interface Props {
@@ -39,6 +40,7 @@ export function ChatInfoPanel({ chat, onClose, onCall }: Props) {
   const [muteLoading, setMuteLoading] = useState(false)
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const [showGroupSettings, setShowGroupSettings] = useState(false)
   const [showAddMember, setShowAddMember] = useState(false)
   const [addSearch, setAddSearch] = useState('')
   const [addResults, setAddResults] = useState<User[]>([])
@@ -142,6 +144,18 @@ export function ChatInfoPanel({ chat, onClose, onCall }: Props) {
   const name = isPrivate && profile
     ? `${profile.first_name}${profile.last_name ? ' ' + profile.last_name : ''}`
     : chat.title ?? 'Чат'
+
+  // Nested: group settings
+  if (showGroupSettings && isGroup) {
+    return (
+      <GroupSettingsPanel
+        chat={chat}
+        members={members}
+        onClose={onClose}
+        onBack={() => setShowGroupSettings(false)}
+      />
+    )
+  }
 
   // Nested: member profile
   if (selectedMemberId) {
@@ -254,6 +268,17 @@ export function ChatInfoPanel({ chat, onClose, onCall }: Props) {
                   <div className="absolute top-full right-0 mt-1 z-50
                     bg-white dark:bg-gray-800 rounded-2xl shadow-2xl py-1.5 min-w-[220px]
                     border border-black/5 dark:border-white/5 animate-scaleIn origin-top-right">
+                    {isAdmin && (
+                      <MoreMenuItem
+                        label="Управление группой"
+                        onClick={() => { setShowMoreMenu(false); setShowGroupSettings(true) }}
+                        icon={
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        }
+                      />
+                    )}
                     {isAdmin && (
                       <MoreMenuItem
                         label="Добавить участников"
@@ -388,6 +413,19 @@ export function ChatInfoPanel({ chat, onClose, onCall }: Props) {
               </>
             )}
           </div>
+
+          {isGroup && isAdmin && (
+            <ActionBtn
+              onClick={() => setShowGroupSettings(true)}
+              label="Управление"
+              icon={
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              }
+            />
+          )}
 
           {isGroup && (
             <ActionBtn

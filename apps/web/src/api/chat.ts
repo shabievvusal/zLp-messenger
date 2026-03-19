@@ -47,6 +47,12 @@ export const chatApi = {
   getSharedMedia: (chatId: string, type: 'photo' | 'document' = 'photo', limit = 20, offset = 0) =>
     api.get<Attachment[]>(`/chats/${chatId}/media`, { params: { type, limit, offset } }),
 
+  updateGroup: (chatId: string, data: { title?: string; description?: string; is_public?: boolean }) =>
+    api.patch(`/chats/${chatId}`, data),
+
+  deleteGroup: (chatId: string) =>
+    api.delete(`/chats/${chatId}`),
+
   addMember: (chatId: string, userId: string) =>
     api.post(`/chats/${chatId}/members`, { user_id: userId }),
 

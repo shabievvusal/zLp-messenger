@@ -87,6 +87,41 @@ func (r *Repository) GetUserChats(ctx context.Context, userID uuid.UUID) ([]mode
 	return chats, err
 }
 
+func (r *Repository) UpdateChat(ctx context.Context, chatID uuid.UUID, title, description *string, isPublic *bool) error {
+	parts := []string{}
+	args := []interface{}{}
+	idx := 1
+
+	if title != nil {
+		parts = append(parts, fmt.Sprintf("title = $%d", idx))
+		args = append(args, *title)
+		idx++
+	}
+	if description != nil {
+		parts = append(parts, fmt.Sprintf("description = $%d", idx))
+		args = append(args, *description)
+		idx++
+	}
+	if isPublic != nil {
+		parts = append(parts, fmt.Sprintf("is_public = $%d", idx))
+		args = append(args, *isPublic)
+		idx++
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+	args = append(args, chatID)
+	query := fmt.Sprintf("UPDATE chats SET %s, updated_at = NOW() WHERE id = $%d",
+		strings.Join(parts, ", "), idx)
+	_, err := r.db.ExecContext(ctx, query, args...)
+	return err
+}
+
+func (r *Repository) DeleteChat(ctx context.Context, chatID uuid.UUID) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM chats WHERE id = $1`, chatID)
+	return err
+}
+
 func (r *Repository) GetPrivateChat(ctx context.Context, userA, userB uuid.UUID) (*models.Chat, error) {
 	var chat models.Chat
 	err := r.db.GetContext(ctx, &chat, `
