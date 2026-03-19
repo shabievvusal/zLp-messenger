@@ -83,8 +83,126 @@ func (r *Repository) GetUserChats(ctx context.Context, userID uuid.UUID) ([]mode
 		) DESC NULLS LAST`
 
 	var chats []models.Chat
-	err := r.db.SelectContext(ctx, &chats, query, userID)
-	return chats, err
+	if err := r.db.SelectContext(ctx, &chats, query, userID); err != nil {
+		return nil, err
+	}
+	if len(chats) > 0 {
+		_ = r.populateLastMessages(ctx, chats)
+		_ = r.populateUnreadCounts(ctx, chats, userID)
+	}
+	return chats, nil
+}
+
+// populateLastMessages batch-fetches the last message per chat and attaches it (with sender info).
+func (r *Repository) populateLastMessages(ctx context.Context, chats []models.Chat) error {
+	chatIDs := make([]interface{}, len(chats))
+	placeholders := make([]string, len(chats))
+	for i, c := range chats {
+		chatIDs[i] = c.ID
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+	}
+	query := fmt.Sprintf(`
+		SELECT DISTINCT ON (chat_id)
+			id, chat_id, sender_id, type, text, is_edited, is_pinned, is_deleted,
+			reply_to_id, forward_from_id, forward_chat_id, created_at, edited_at
+		FROM messages
+		WHERE chat_id IN (%s) AND is_deleted = FALSE
+		ORDER BY chat_id, created_at DESC`,
+		strings.Join(placeholders, ","),
+	)
+	type msgRow struct {
+		ID            uuid.UUID  `db:"id"`
+		ChatID        uuid.UUID  `db:"chat_id"`
+		SenderID      *uuid.UUID `db:"sender_id"`
+		Type          string     `db:"type"`
+		Text          *string    `db:"text"`
+		IsEdited      bool       `db:"is_edited"`
+		IsPinned      bool       `db:"is_pinned"`
+		IsDeleted     bool       `db:"is_deleted"`
+		ReplyToID     *uuid.UUID `db:"reply_to_id"`
+		ForwardFromID *uuid.UUID `db:"forward_from_id"`
+		ForwardChatID *uuid.UUID `db:"forward_chat_id"`
+		CreatedAt     time.Time  `db:"created_at"`
+		EditedAt      *time.Time `db:"edited_at"`
+	}
+	var rows []msgRow
+	if err := r.db.SelectContext(ctx, &rows, query, chatIDs...); err != nil {
+		return err
+	}
+
+	// Convert to models.Message slice and fetch senders + attachments
+	msgs := make([]models.Message, len(rows))
+	for i, row := range rows {
+		msgs[i] = models.Message{
+			ID:            row.ID,
+			ChatID:        row.ChatID,
+			SenderID:      row.SenderID,
+			Type:          models.MessageType(row.Type),
+			Text:          row.Text,
+			IsEdited:      row.IsEdited,
+			IsPinned:      row.IsPinned,
+			IsDeleted:     row.IsDeleted,
+			ReplyToID:     row.ReplyToID,
+			ForwardFromID: row.ForwardFromID,
+			ForwardChatID: row.ForwardChatID,
+			CreatedAt:     row.CreatedAt,
+			EditedAt:      row.EditedAt,
+		}
+	}
+	_ = r.populateSenders(ctx, msgs)
+	_ = r.populateAttachments(ctx, msgs)
+
+	// Build map chatID → message and attach
+	msgMap := make(map[uuid.UUID]*models.Message, len(msgs))
+	for i := range msgs {
+		msgMap[msgs[i].ChatID] = &msgs[i]
+	}
+	for i := range chats {
+		if m, ok := msgMap[chats[i].ID]; ok {
+			chats[i].LastMessage = m
+		}
+	}
+	return nil
+}
+
+// populateUnreadCounts batch-fetches unread message counts per chat for a user.
+func (r *Repository) populateUnreadCounts(ctx context.Context, chats []models.Chat, userID uuid.UUID) error {
+	chatIDs := make([]interface{}, len(chats))
+	placeholders := make([]string, len(chats))
+	for i, c := range chats {
+		chatIDs[i] = c.ID
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+	}
+	query := fmt.Sprintf(`
+		SELECT m.chat_id, COUNT(*) AS cnt
+		FROM messages m
+		WHERE m.chat_id IN (%s)
+		  AND m.sender_id != $1
+		  AND m.is_deleted = FALSE
+		  AND NOT EXISTS (
+			SELECT 1 FROM message_reads mr
+			WHERE mr.message_id = m.id AND mr.user_id = $1
+		  )
+		GROUP BY m.chat_id`,
+		strings.Join(placeholders, ","),
+	)
+	args := append([]interface{}{userID}, chatIDs...)
+	type countRow struct {
+		ChatID uuid.UUID `db:"chat_id"`
+		Count  int       `db:"cnt"`
+	}
+	var countRows []countRow
+	if err := r.db.SelectContext(ctx, &countRows, query, args...); err != nil {
+		return err
+	}
+	countMap := make(map[uuid.UUID]int, len(countRows))
+	for _, cr := range countRows {
+		countMap[cr.ChatID] = cr.Count
+	}
+	for i := range chats {
+		chats[i].UnreadCount = countMap[chats[i].ID]
+	}
+	return nil
 }
 
 func (r *Repository) UpdateChat(ctx context.Context, chatID uuid.UUID, title, description *string, isPublic *bool) error {
