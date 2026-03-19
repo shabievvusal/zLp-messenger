@@ -3,6 +3,7 @@ import { ru } from 'date-fns/locale'
 import { clsx } from 'clsx'
 import type { Chat } from '@/types'
 import { Avatar } from '@/components/ui/Avatar'
+import { useChatStore } from '@/store/chat'
 
 interface Props {
   chat: Chat
@@ -13,6 +14,7 @@ interface Props {
 export function ChatItem({ chat, active, onClick }: Props) {
   const title = chat.title ?? 'Unknown'
   const lastMsg = chat.last_message
+  const unreadMentions = useChatStore((s) => s.unreadMentions[chat.id] ?? 0)
 
   const preview = lastMsg?.type === 'service'
     ? lastMsg.text
@@ -68,13 +70,21 @@ export function ChatItem({ chat, active, onClick }: Props) {
           )}>
             {preview}
           </p>
-          {chat.unread_count > 0 && (
-            <span className="ml-1 bg-primary-500 text-white text-[11px] font-medium
-              rounded-full min-w-[20px] h-5 flex items-center justify-center
-              px-1.5 flex-shrink-0 animate-popIn shadow-sm shadow-primary-500/30">
-              {chat.unread_count > 99 ? '99+' : chat.unread_count}
-            </span>
-          )}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {unreadMentions > 0 && (
+              <span className="bg-red-500 text-white text-[10px] font-bold
+                rounded-full w-5 h-5 flex items-center justify-center animate-popIn">
+                @
+              </span>
+            )}
+            {chat.unread_count > 0 && (
+              <span className="bg-primary-500 text-white text-[11px] font-medium
+                rounded-full min-w-[20px] h-5 flex items-center justify-center
+                px-1.5 animate-popIn shadow-sm shadow-primary-500/30">
+                {chat.unread_count > 99 ? '99+' : chat.unread_count}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </button>

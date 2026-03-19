@@ -27,8 +27,11 @@ export function Sidebar() {
       )
     : chats
 
+  const clearMentions = useChatStore((s) => s.clearMentions)
+
   const handleSelect = (chatId: string) => {
     setActiveChat(chatId)
+    clearMentions(chatId)
     navigate(`/chat/${chatId}`)
   }
 

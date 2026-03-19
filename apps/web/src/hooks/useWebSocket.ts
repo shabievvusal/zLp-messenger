@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { useChatStore } from '@/store/chat'
 import { useCallStore } from '@/store/call'
+import { canNotify } from './useNotificationPermission'
 import type { WSEvent, Message } from '@/types'
 
 const RECONNECT_DELAY = 3000
@@ -11,6 +12,12 @@ function getWsUrl(token: string) {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
   const host = window.location.host
   return `${proto}://${host}/ws?token=${token}`
+}
+
+// Allows App.tsx to register a navigate function for notification click
+let _navigateToChat: ((chatId: string) => void) | null = null
+export function registerNavigateToChat(fn: (chatId: string) => void) {
+  _navigateToChat = fn
 }
 
 // Exposed so other hooks (useWebRTC) can consume call_webrtc events
@@ -41,6 +48,7 @@ export function useWebSocket() {
   const setTyping = useChatStore((s) => s.setTyping)
   const setOnline = useChatStore((s) => s.setOnline)
   const incrementUnread = useChatStore((s) => s.incrementUnread)
+  const incrementMention = useChatStore((s) => s.incrementMention)
   const activeChatId = useChatStore((s) => s.activeChatId)
 
   const setIncoming = useCallStore((s) => s.setIncoming)
@@ -57,8 +65,31 @@ export function useWebSocket() {
         const msg = event.payload as Message
         addMessage(msg)
         updateLastMessage(msg.chat_id, msg)
-        if (msg.chat_id !== activeChatIdRef.current) {
+        const isActiveChat = msg.chat_id === activeChatIdRef.current
+        if (!isActiveChat) {
           incrementUnread(msg.chat_id)
+        }
+        // Browser notification when tab is hidden or user is in different chat
+        if ((!isActiveChat || document.hidden) && canNotify()) {
+          const store = useChatStore.getState()
+          const mutedUntil = store.mutedChats[msg.chat_id]
+          const isMuted = !!mutedUntil && new Date(mutedUntil) > new Date()
+          if (!isMuted) {
+            const senderName = msg.sender
+              ? `${msg.sender.first_name}${msg.sender.last_name ? ' ' + msg.sender.last_name : ''}`
+              : store.chats.find((c) => c.id === msg.chat_id)?.title ?? 'Новое сообщение'
+            const body = msg.text?.slice(0, 100) ?? (msg.attachments?.length ? '📎 Вложение' : '')
+            const n = new Notification(senderName, {
+              body,
+              icon: '/favicon.ico',
+              tag: msg.chat_id,
+            })
+            n.onclick = () => {
+              window.focus()
+              _navigateToChat?.(msg.chat_id)
+              n.close()
+            }
+          }
         }
         break
       }
@@ -128,9 +159,14 @@ export function useWebSocket() {
         _webRTCHandler?.(p.sub_type, p.from, p.data, p.call_id)
         break
       }
+      case 'mention': {
+        const p = event.payload as { chat_id: string; message_id: string }
+        incrementMention(p.chat_id)
+        break
+      }
     }
   }, [addMessage, updateMessage, removeMessage, updateLastMessage, setTyping, setOnline,
-      incrementUnread, setIncoming, updateActive, clearAll])
+      incrementUnread, incrementMention, setIncoming, updateActive, clearAll])
 
   const connect = useCallback(() => {
     if (!isAuthenticated || !accessToken) return

@@ -111,6 +111,11 @@ func (h *Hub) BroadcastChat(chatID uuid.UUID, eventType string, payload any, exc
 	h.BroadcastToChat(chatID, OutgoingEvent{Type: eventType, Payload: payload}, excludeUserID)
 }
 
+// NotifyUser implements chat.Notifier — sends a targeted event to a single user.
+func (h *Hub) NotifyUser(userID uuid.UUID, eventType string, payload any) {
+	h.SendToUser(userID, OutgoingEvent{Type: eventType, Payload: payload})
+}
+
 // SubscribeToChat implements chat.Notifier — subscribes a user to a chat if they are online.
 func (h *Hub) SubscribeToChat(userID, chatID uuid.UUID) {
 	h.mu.RLock()

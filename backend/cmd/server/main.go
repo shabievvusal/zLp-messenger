@@ -118,6 +118,8 @@ func main() {
 	protected.Get("/chats/:chatID/messages", chatHandler.GetMessages)
 	protected.Post("/chats/:chatID/messages", chatHandler.SendMessage)
 	protected.Get("/chats/:chatID/messages/search", chatHandler.SearchMessages)
+	protected.Patch("/chats/:chatID/mute", chatHandler.MuteChat)
+	protected.Get("/chats/:chatID/media", chatHandler.GetSharedMedia)
 
 	protected.Patch("/messages/:msgID", chatHandler.EditMessage)
 	protected.Delete("/messages/:msgID", chatHandler.DeleteMessage)

@@ -33,6 +33,7 @@ const (
 	EventCallEnded      = "call_ended"      // завершён
 	EventCallWebRTC     = "call_webrtc"     // WebRTC сигналинг
 	EventError          = "error"
+	EventMention        = "mention"         // упоминание @username
 )
 
 type IncomingEvent struct {

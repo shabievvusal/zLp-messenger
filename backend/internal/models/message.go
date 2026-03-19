@@ -57,6 +57,9 @@ type Message struct {
 	Attachments []Attachment  `db:"-" json:"attachments,omitempty"`
 	Reactions   []Reaction    `db:"-" json:"reactions,omitempty"`
 	ReplyTo     *Message      `db:"-" json:"reply_to,omitempty"`
+
+	// Transient: populated by SendMessage for mention broadcasting; not persisted or serialized
+	MentionedUserIDs []uuid.UUID `db:"-" json:"-"`
 }
 
 type Attachment struct {

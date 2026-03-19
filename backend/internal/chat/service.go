@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/zlp-messenger/backend/internal/models"
 )
+
+var mentionRe = regexp.MustCompile(`@(\w+)`)
 
 var (
 	ErrChatNotFound    = errors.New("chat not found")
@@ -164,6 +168,37 @@ func (s *Service) SendMessage(ctx context.Context, senderID uuid.UUID, in SendMe
 		return nil, fmt.Errorf("create message: %w", err)
 	}
 
+	// Detect @mentions in message text
+	if in.Text != nil {
+		matches := mentionRe.FindAllStringSubmatch(*in.Text, -1)
+		if len(matches) > 0 {
+			usernames := make([]string, 0, len(matches))
+			seen := make(map[string]bool)
+			for _, m := range matches {
+				u := m[1]
+				if !seen[u] {
+					seen[u] = true
+					usernames = append(usernames, u)
+				}
+			}
+			resolved, _ := s.repo.GetMentionedUserIDs(ctx, in.ChatID, usernames)
+			for _, uid := range resolved {
+				if uid == senderID {
+					continue // skip self-mention
+				}
+				mention := &models.Mention{
+					ID:              uuid.New(),
+					MessageID:       msg.ID,
+					ChatID:          in.ChatID,
+					SenderID:        &senderID,
+					MentionedUserID: uid,
+				}
+				_ = s.repo.CreateMention(ctx, mention)
+				msg.MentionedUserIDs = append(msg.MentionedUserIDs, uid)
+			}
+		}
+	}
+
 	// When forwarding, copy attachments from the original message so recipients see media
 	if in.ForwardFromID != nil {
 		origAttachments, _ := s.repo.GetAttachments(ctx, *in.ForwardFromID)
@@ -273,4 +308,25 @@ func (s *Service) SearchMessages(ctx context.Context, userID, chatID uuid.UUID, 
 		return nil, ErrNotMember
 	}
 	return s.repo.SearchMessages(ctx, chatID, query)
+}
+
+func (s *Service) MuteChat(ctx context.Context, userID, chatID uuid.UUID, until *time.Time) error {
+	if _, err := s.repo.GetMember(ctx, chatID, userID); err != nil {
+		return ErrNotMember
+	}
+	return s.repo.UpdateMutedUntil(ctx, chatID, userID, until)
+}
+
+func (s *Service) GetSharedMedia(ctx context.Context, userID, chatID uuid.UUID, limit, offset int) ([]models.Attachment, error) {
+	if _, err := s.repo.GetMember(ctx, chatID, userID); err != nil {
+		return nil, ErrNotMember
+	}
+	return s.repo.GetSharedMedia(ctx, chatID, limit, offset)
+}
+
+func (s *Service) GetSharedFiles(ctx context.Context, userID, chatID uuid.UUID, limit, offset int) ([]models.Attachment, error) {
+	if _, err := s.repo.GetMember(ctx, chatID, userID); err != nil {
+		return nil, ErrNotMember
+	}
+	return s.repo.GetSharedFiles(ctx, chatID, limit, offset)
 }

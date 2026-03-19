@@ -97,13 +97,23 @@ export interface Call {
   participants?: User[]
 }
 
+export interface ChatMember {
+  chat_id: string
+  user_id: string
+  role: 'owner' | 'admin' | 'member' | 'restricted'
+  title?: string
+  joined_at: string
+  muted_until?: string
+  user?: User
+}
+
 // WebSocket events
 export type WSEventType =
   | 'new_message' | 'message_edited' | 'message_deleted'
   | 'reaction' | 'user_online' | 'user_offline'
   | 'user_typing' | 'user_stop_typing'
   | 'message_read' | 'call_incoming' | 'call_accepted'
-  | 'call_declined' | 'call_ended' | 'call_webrtc' | 'error'
+  | 'call_declined' | 'call_ended' | 'call_webrtc' | 'mention' | 'error'
 
 export interface WSEvent {
   type: WSEventType

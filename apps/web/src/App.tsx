@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/api/auth'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
 import { MessengerPage } from '@/pages/MessengerPage'
 import { SettingsPage } from '@/pages/settings/SettingsPage'
+import { useNotificationPermission } from '@/hooks/useNotificationPermission'
+import { registerNavigateToChat } from '@/hooks/useWebSocket'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -20,6 +22,13 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   const { isAuthenticated, accessToken, setAuth, logout } = useAuthStore()
   const [ready, setReady] = useState(false)
+  const navigate = useNavigate()
+
+  useNotificationPermission()
+
+  useEffect(() => {
+    registerNavigateToChat((chatId) => navigate(`/chat/${chatId}`))
+  }, [navigate])
 
   // При старте: если залогинен, но нет accessToken — обновляем через refresh cookie
   useEffect(() => {

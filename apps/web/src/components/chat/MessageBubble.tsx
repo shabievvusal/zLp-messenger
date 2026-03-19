@@ -17,6 +17,15 @@ interface Props {
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👏', '🎉']
 
+function parseMentions(text: string): React.ReactNode {
+  const parts = text.split(/(@\w+)/g)
+  return parts.map((part, i) =>
+    part.startsWith('@')
+      ? <span key={i} className="text-primary-500 font-medium">{part}</span>
+      : part
+  )
+}
+
 export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
   // Service messages — centered pill, no bubble
   if (msg.type === 'service') {
@@ -200,7 +209,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
               'text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words',
               hasMedia ? 'text-xs leading-snug' : 'text-sm leading-relaxed'
             )}>
-              {msg.text}
+              {parseMentions(msg.text)}
             </p>
           )}
 

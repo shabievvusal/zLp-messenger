@@ -2,6 +2,7 @@ package chat
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -140,6 +141,15 @@ func (h *Handler) SendMessage(c *fiber.Ctx) error {
 
 	if h.notifier != nil {
 		h.notifier.BroadcastChat(chatID, "new_message", msg, &userID)
+		// Notify each mentioned user individually
+		for _, mentionedUID := range msg.MentionedUserIDs {
+			h.notifier.NotifyUser(mentionedUID, "mention", map[string]any{
+				"message_id": msg.ID,
+				"chat_id":    msg.ChatID,
+				"sender_id":  userID,
+				"text":       msg.Text,
+			})
+		}
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(msg)
@@ -240,6 +250,67 @@ func (h *Handler) RemoveReaction(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, "failed to remove reaction")
 	}
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// PATCH /api/chats/:chatID/mute
+func (h *Handler) MuteChat(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+
+	var body struct {
+		Until *string `json:"until"`
+	}
+	_ = c.BodyParser(&body)
+
+	var until *time.Time
+	if body.Until != nil {
+		t, err := time.Parse(time.RFC3339, *body.Until)
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "invalid until format, use RFC3339")
+		}
+		until = &t
+	}
+
+	if err := h.service.MuteChat(c.Context(), userID, chatID, until); err != nil {
+		if err == ErrNotMember {
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		}
+		return fiber.NewError(fiber.StatusInternalServerError, "mute failed")
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// GET /api/chats/:chatID/media
+func (h *Handler) GetSharedMedia(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+
+	mediaType := c.Query("type", "photo")
+	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+	offset, _ := strconv.Atoi(c.Query("offset", "0"))
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	var items interface{}
+	if mediaType == "document" {
+		items, err = h.service.GetSharedFiles(c.Context(), userID, chatID, limit, offset)
+	} else {
+		items, err = h.service.GetSharedMedia(c.Context(), userID, chatID, limit, offset)
+	}
+	if err != nil {
+		if err == ErrNotMember {
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		}
+		return fiber.NewError(fiber.StatusInternalServerError, "failed to get media")
+	}
+	return c.JSON(items)
 }
 
 // GET /api/chats/:chatID/messages/search

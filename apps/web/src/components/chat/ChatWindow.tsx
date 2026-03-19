@@ -7,7 +7,7 @@ import { ChatHeader } from './ChatHeader'
 import { MessageList } from './MessageList'
 import { MessageInput } from './MessageInput'
 import { MediaViewer } from './MediaViewer'
-import { UserProfilePanel } from './UserProfilePanel'
+import { ChatInfoPanel } from './ChatInfoPanel'
 import { ForwardModal } from './ForwardModal'
 import { ChatProvider, useChatCtx } from '@/contexts/ChatContext'
 import type { Message } from '@/types'
@@ -118,7 +118,7 @@ function ChatWindowInner({ onStartCall }: Props) {
       <ChatHeader
         chat={chat}
         onStartCall={handleStartCall}
-        onOpenProfile={chat.type === 'private' && chat.peer_user_id ? () => setShowProfile(true) : undefined}
+        onOpenProfile={() => setShowProfile(true)}
       />
       <MessageList chatId={chatId} onLoadMore={handleLoadMore} />
 
@@ -134,11 +134,11 @@ function ChatWindowInner({ onStartCall }: Props) {
         <MessageInput chatId={chatId} />
       )}
 
-      {showProfile && chat.peer_user_id && (
-        <UserProfilePanel
-          userId={chat.peer_user_id}
+      {showProfile && (
+        <ChatInfoPanel
+          chat={chat}
           onClose={() => setShowProfile(false)}
-          onCall={(type) => handleStartCall(type)}
+          onCall={handleStartCall}
         />
       )}
 

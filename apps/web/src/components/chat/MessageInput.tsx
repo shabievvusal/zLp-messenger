@@ -8,6 +8,8 @@ import { useChatStore } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { useChatCtx } from '@/contexts/ChatContext'
 import { ReplyBar } from './ReplyBar'
+import { MentionAutocomplete } from './MentionAutocomplete'
+import type { ChatMember } from '@/types'
 import toast from 'react-hot-toast'
 
 interface Props {
@@ -30,6 +32,8 @@ export function MessageInput({ chatId }: Props) {
   const [recording, setRecording] = useState(false)
   const [recordSeconds, setRecordSeconds] = useState(0)
   const [filesToUpload, setFilesToUpload] = useState<FileToUpload[]>([])
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [members, setMembers] = useState<ChatMember[]>([])
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -42,6 +46,13 @@ export function MessageInput({ chatId }: Props) {
   const updateMessage = useChatStore((s) => s.updateMessage)
   const user = useAuthStore((s) => s.user)
   const { replyTo, setReplyTo, editMsg, setEditMsg } = useChatCtx()
+
+  // Load chat members for @mention autocomplete
+  useEffect(() => {
+    chatApi.getMembers(chatId)
+      .then(({ data }) => setMembers(data ?? []))
+      .catch(() => {})
+  }, [chatId])
 
   // Pre-fill input when editing
   useEffect(() => {
@@ -177,8 +188,26 @@ export function MessageInput({ chatId }: Props) {
   }
 
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setText(e.target.value)
+    const val = e.target.value
+    setText(val)
     sendTypingEvent()
+    // Detect @mention trigger at cursor
+    const cursor = e.target.selectionStart ?? val.length
+    const beforeCursor = val.slice(0, cursor)
+    const match = /@(\w*)$/.exec(beforeCursor)
+    setMentionQuery(match ? match[1] : null)
+  }
+
+  const handleMentionSelect = (username: string) => {
+    const ta = textareaRef.current
+    if (!ta) return
+    const cursor = ta.selectionStart ?? text.length
+    const before = text.slice(0, cursor)
+    const after = text.slice(cursor)
+    const replaced = before.replace(/@(\w*)$/, `@${username} `)
+    setText(replaced + after)
+    setMentionQuery(null)
+    setTimeout(() => ta.focus(), 0)
   }
 
   const onEmojiClick = (data: EmojiClickData) => {
@@ -354,6 +383,14 @@ export function MessageInput({ chatId }: Props) {
             <div className="flex-1 relative flex items-end
               bg-black/5 dark:bg-white/8 rounded-2xl px-3 py-2
               transition-shadow focus-within:ring-2 focus-within:ring-primary-500/30">
+              {mentionQuery !== null && (
+                <MentionAutocomplete
+                  query={mentionQuery}
+                  members={members}
+                  onSelect={handleMentionSelect}
+                  anchorRef={textareaRef}
+                />
+              )}
               <textarea
                 ref={textareaRef}
                 value={text}

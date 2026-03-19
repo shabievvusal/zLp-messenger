@@ -5,8 +5,10 @@ interface ChatState {
   chats: Chat[]
   activeChatId: string | null
   messages: Record<string, Message[]>
-  typing: Record<string, string[]>   // chatId → userIds[]
-  onlineUsers: string[]              // userIds (array, не Set — для совместимости)
+  typing: Record<string, string[]>        // chatId → userIds[]
+  onlineUsers: string[]                   // userIds
+  unreadMentions: Record<string, number>  // chatId → mention count
+  mutedChats: Record<string, string | null> // chatId → ISO until or null
 
   setChats: (chats: Chat[]) => void
   setActiveChat: (chatId: string | null) => void
@@ -24,6 +26,9 @@ interface ChatState {
   isOnline: (userId: string) => boolean
   incrementUnread: (chatId: string) => void
   clearUnread: (chatId: string) => void
+  incrementMention: (chatId: string) => void
+  clearMentions: (chatId: string) => void
+  setChatMuted: (chatId: string, until: string | null) => void
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -32,6 +37,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: {},
   typing: {},
   onlineUsers: [],
+  unreadMentions: {},
+  mutedChats: {},
 
   setChats: (chats) => set({ chats: chats ?? [] }),
   setActiveChat: (chatId) => set({ activeChatId: chatId }),
@@ -123,5 +130,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
       chats: state.chats.map((c) =>
         c.id === chatId ? { ...c, unread_count: 0 } : c
       ),
+    })),
+
+  incrementMention: (chatId) =>
+    set((state) => ({
+      unreadMentions: {
+        ...state.unreadMentions,
+        [chatId]: (state.unreadMentions[chatId] ?? 0) + 1,
+      },
+    })),
+
+  clearMentions: (chatId) =>
+    set((state) => ({
+      unreadMentions: { ...state.unreadMentions, [chatId]: 0 },
+    })),
+
+  setChatMuted: (chatId, until) =>
+    set((state) => ({
+      mutedChats: { ...state.mutedChats, [chatId]: until },
     })),
 }))

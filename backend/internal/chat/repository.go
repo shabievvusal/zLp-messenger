@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -114,12 +115,57 @@ func (r *Repository) GetMember(ctx context.Context, chatID, userID uuid.UUID) (*
 func (r *Repository) GetMembers(ctx context.Context, chatID uuid.UUID) ([]models.ChatMember, error) {
 	var members []models.ChatMember
 	err := r.db.SelectContext(ctx, &members, `
-		SELECT cm.*, u.username, u.first_name, u.last_name, u.avatar_url
+		SELECT cm.chat_id, cm.user_id, cm.role, cm.title, cm.joined_at, cm.muted_until
 		FROM chat_members cm
-		INNER JOIN users u ON u.id = cm.user_id
 		WHERE cm.chat_id = $1 AND cm.role NOT IN ('left', 'banned')
 		ORDER BY cm.joined_at`, chatID)
-	return members, err
+	if err != nil || len(members) == 0 {
+		return members, err
+	}
+	// Populate User field
+	args := make([]interface{}, len(members))
+	placeholders := make([]string, len(members))
+	for i, m := range members {
+		args[i] = m.UserID
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+	}
+	query := fmt.Sprintf(
+		`SELECT id, username, first_name, last_name, bio, avatar_url, is_bot, last_seen
+		 FROM users WHERE id IN (%s)`,
+		strings.Join(placeholders, ","),
+	)
+	type userRow struct {
+		ID        uuid.UUID  `db:"id"`
+		Username  string     `db:"username"`
+		FirstName string     `db:"first_name"`
+		LastName  *string    `db:"last_name"`
+		Bio       *string    `db:"bio"`
+		AvatarURL *string    `db:"avatar_url"`
+		IsBot     bool       `db:"is_bot"`
+		LastSeen  *time.Time `db:"last_seen"`
+	}
+	var users []userRow
+	if err := r.db.SelectContext(ctx, &users, query, args...); err == nil {
+		uMap := make(map[uuid.UUID]userRow, len(users))
+		for _, u := range users {
+			uMap[u.ID] = u
+		}
+		for i := range members {
+			if u, ok := uMap[members[i].UserID]; ok {
+				members[i].User = &models.PublicUser{
+					ID:        u.ID,
+					Username:  u.Username,
+					FirstName: u.FirstName,
+					LastName:  u.LastName,
+					Bio:       u.Bio,
+					AvatarURL: u.AvatarURL,
+					IsBot:     u.IsBot,
+					LastSeen:  u.LastSeen,
+				}
+			}
+		}
+	}
+	return members, nil
 }
 
 func (r *Repository) RemoveMember(ctx context.Context, chatID, userID uuid.UUID) error {
@@ -319,4 +365,89 @@ func (r *Repository) GetUnreadCount(ctx context.Context, chatID, userID uuid.UUI
 			WHERE mr.message_id = m.id AND mr.user_id = $2
 		)`, chatID, userID)
 	return count, err
+}
+
+// ============================================================
+// MUTE
+// ============================================================
+
+func (r *Repository) UpdateMutedUntil(ctx context.Context, chatID, userID uuid.UUID, until *time.Time) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE chat_members SET muted_until = $3
+		WHERE chat_id = $1 AND user_id = $2`, chatID, userID, until)
+	return err
+}
+
+// ============================================================
+// MENTIONS
+// ============================================================
+
+func (r *Repository) CreateMention(ctx context.Context, m *models.Mention) error {
+	_, err := r.db.NamedExecContext(ctx, `
+		INSERT INTO mentions (id, message_id, chat_id, sender_id, mentioned_user_id)
+		VALUES (:id, :message_id, :chat_id, :sender_id, :mentioned_user_id)`, m)
+	return err
+}
+
+// GetMentionedUserIDs resolves @usernames to user IDs for members of a given chat.
+func (r *Repository) GetMentionedUserIDs(ctx context.Context, chatID uuid.UUID, usernames []string) (map[string]uuid.UUID, error) {
+	if len(usernames) == 0 {
+		return nil, nil
+	}
+	args := make([]interface{}, 0, len(usernames)+1)
+	args = append(args, chatID)
+	placeholders := make([]string, len(usernames))
+	for i, u := range usernames {
+		args = append(args, u)
+		placeholders[i] = fmt.Sprintf("$%d", i+2)
+	}
+	query := fmt.Sprintf(`
+		SELECT u.username, u.id FROM users u
+		INNER JOIN chat_members cm ON cm.user_id = u.id
+		WHERE cm.chat_id = $1 AND u.username IN (%s)
+		  AND cm.role NOT IN ('left','banned')`,
+		strings.Join(placeholders, ","),
+	)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[string]uuid.UUID)
+	for rows.Next() {
+		var username string
+		var id uuid.UUID
+		if err := rows.Scan(&username, &id); err == nil {
+			result[username] = id
+		}
+	}
+	return result, nil
+}
+
+// ============================================================
+// SHARED MEDIA
+// ============================================================
+
+func (r *Repository) GetSharedMedia(ctx context.Context, chatID uuid.UUID, limit, offset int) ([]models.Attachment, error) {
+	var items []models.Attachment
+	err := r.db.SelectContext(ctx, &items, `
+		SELECT a.* FROM attachments a
+		JOIN messages m ON m.id = a.message_id
+		WHERE m.chat_id = $1 AND m.is_deleted = FALSE
+		  AND a.type IN ('photo','video','gif')
+		ORDER BY a.created_at DESC
+		LIMIT $2 OFFSET $3`, chatID, limit, offset)
+	return items, err
+}
+
+func (r *Repository) GetSharedFiles(ctx context.Context, chatID uuid.UUID, limit, offset int) ([]models.Attachment, error) {
+	var items []models.Attachment
+	err := r.db.SelectContext(ctx, &items, `
+		SELECT a.* FROM attachments a
+		JOIN messages m ON m.id = a.message_id
+		WHERE m.chat_id = $1 AND m.is_deleted = FALSE
+		  AND a.type = 'document'
+		ORDER BY a.created_at DESC
+		LIMIT $2 OFFSET $3`, chatID, limit, offset)
+	return items, err
 }

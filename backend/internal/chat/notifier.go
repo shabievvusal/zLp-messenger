@@ -7,4 +7,5 @@ import "github.com/google/uuid"
 type Notifier interface {
 	BroadcastChat(chatID uuid.UUID, eventType string, payload any, excludeUserID *uuid.UUID)
 	SubscribeToChat(userID, chatID uuid.UUID)
+	NotifyUser(userID uuid.UUID, eventType string, payload any)
 }
