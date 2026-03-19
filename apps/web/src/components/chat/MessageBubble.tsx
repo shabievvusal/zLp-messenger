@@ -19,8 +19,9 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
   // Service messages (call summaries, etc.) — centered pill, no bubble
   if (msg.type === 'service') {
     return (
-      <div className="flex justify-center my-2">
-        <span className="text-xs text-gray-500 dark:text-gray-400 bg-black/5 dark:bg-white/10
+      <div className="flex justify-center my-2 animate-fadeIn">
+        <span className="text-xs text-gray-500 dark:text-gray-400
+          bg-black/8 dark:bg-white/10 backdrop-blur-sm
           rounded-full px-3 py-1 select-none">
           {msg.text}
         </span>
@@ -88,7 +89,10 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
   }, {})
 
   return (
-    <div className={clsx('flex items-end gap-1.5 group', isOwn ? 'flex-row-reverse' : 'flex-row')}>
+    <div className={clsx(
+      'flex items-end gap-1.5 group animate-msgIn',
+      isOwn ? 'flex-row-reverse' : 'flex-row'
+    )}>
 
       {/* Sender avatar for incoming messages */}
       <div className="w-7 flex-shrink-0 self-end">
@@ -237,8 +241,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
       {menu && (
         <div
           ref={menuRef}
-          className="fixed z-50 bg-white dark:bg-gray-800 shadow-xl rounded-2xl py-2
-            border border-gray-100 dark:border-gray-700 min-w-[200px]"
+          className="ctx-menu"
           style={{ top: Math.min(menu.y, window.innerHeight - 320), left: Math.min(menu.x, window.innerWidth - 220) }}
         >
           {/* Emoji row */}

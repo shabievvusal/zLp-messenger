@@ -93,7 +93,8 @@ export function ActiveCallScreen({ onHangup, onToggleMute, onToggleVideo }: Prop
 
       {/* Local video (PiP) */}
       {isVideo && (
-        <div className="absolute top-4 right-4 z-20 w-28 h-40 rounded-2xl overflow-hidden shadow-xl border border-white/20">
+        <div className="absolute top-4 right-4 z-20 w-28 h-40 rounded-2xl overflow-hidden
+          shadow-2xl border border-white/20 animate-scaleIn">
           <video
             ref={localVideoRef}
             autoPlay
@@ -114,7 +115,7 @@ export function ActiveCallScreen({ onHangup, onToggleMute, onToggleVideo }: Prop
             active={active.isMuted}
             onClick={onToggleMute}
             label={active.isMuted ? 'Unmute' : 'Mute'}
-            activeColor="bg-white/20"
+            activeColor="bg-white/25"
           >
             {active.isMuted ? (
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -128,8 +129,9 @@ export function ActiveCallScreen({ onHangup, onToggleMute, onToggleVideo }: Prop
           {/* Hangup */}
           <button
             onClick={onHangup}
-            className="w-20 h-20 rounded-full bg-red-500 hover:bg-red-600 transition-colors
-              flex items-center justify-center shadow-xl"
+            className="w-20 h-20 rounded-full bg-red-500 hover:bg-red-600 active:scale-90
+              flex items-center justify-center transition-all
+              shadow-xl shadow-red-500/40"
           >
             <svg className="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -189,7 +191,7 @@ function ControlBtn({
       className={`flex flex-col items-center gap-1.5 group`}
       title={label}
     >
-      <span className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors
+      <span className={`w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-90
         ${active ? activeColor : 'bg-white/10 hover:bg-white/20'}`}>
         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           {children}

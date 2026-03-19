@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useChatStore } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/api/auth'
@@ -10,7 +10,6 @@ import { Avatar } from '@/components/ui/Avatar'
 
 export function Sidebar() {
   const navigate = useNavigate()
-  const location = useLocation()
   const chats = useChatStore((s) => s.chats)
   const activeChatId = useChatStore((s) => s.activeChatId)
   const setActiveChat = useChatStore((s) => s.setActiveChat)
@@ -43,18 +42,19 @@ export function Sidebar() {
 
   return (
     <aside className="w-[340px] flex-shrink-0 flex flex-col
-      border-r border-gray-200 dark:border-gray-700
+      border-r border-black/8 dark:border-white/8
       bg-sidebar dark:bg-sidebar-dark h-full">
 
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2
-        border-b border-gray-200 dark:border-gray-700">
+      <div className="flex items-center gap-2 px-3 py-2.5
+        border-b border-black/8 dark:border-white/8">
 
         {/* Avatar + menu */}
         <div className="relative">
           <button
             onClick={() => setShowMenu((v) => !v)}
-            className="rounded-full focus:outline-none"
+            className="rounded-full focus:outline-none transition-transform duration-150
+              hover:scale-105 active:scale-95"
           >
             <Avatar
               name={`${user?.first_name ?? '?'} ${user?.last_name ?? ''}`}
@@ -66,18 +66,24 @@ export function Sidebar() {
           {showMenu && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-              <div className="absolute left-0 top-10 z-50 bg-white dark:bg-gray-800
-                shadow-xl rounded-2xl py-2 min-w-[200px]
-                border border-gray-100 dark:border-gray-700">
-                <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700">
+              <div className="absolute left-0 top-11 z-50
+                bg-white dark:bg-gray-800
+                shadow-2xl rounded-2xl py-2 min-w-[220px]
+                border border-black/5 dark:border-white/5
+                animate-scaleIn origin-top-left">
+                <div className="px-4 py-3 border-b border-black/5 dark:border-white/5">
                   <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">
                     {user?.first_name} {user?.last_name}
                   </p>
-                  <p className="text-xs text-gray-500">@{user?.username}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    @{user?.username}
+                  </p>
                 </div>
-                <SideMenuItem icon="⚙️" label="Settings" onClick={() => { navigate('/settings'); setShowMenu(false) }} />
-                <SideMenuItem icon="💾" label="Saved Messages" onClick={() => setShowMenu(false)} />
-                <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
+                <SideMenuItem icon="⚙️" label="Settings"
+                  onClick={() => { navigate('/settings'); setShowMenu(false) }} />
+                <SideMenuItem icon="🔖" label="Saved Messages"
+                  onClick={() => setShowMenu(false)} />
+                <div className="my-1 mx-2 border-t border-black/5 dark:border-white/5" />
                 <SideMenuItem icon="🚪" label="Log Out" onClick={handleLogout} danger />
               </div>
             </>
@@ -85,10 +91,12 @@ export function Sidebar() {
         </div>
 
         {/* Title */}
-        <span className="font-semibold text-sm flex-1 text-gray-900 dark:text-gray-100">
+        <span className="font-semibold text-sm flex-1 text-gray-900 dark:text-gray-100
+          tracking-tight">
           ZLP Messenger
           {totalUnread > 0 && (
-            <span className="ml-2 text-xs bg-primary-500 text-white rounded-full px-1.5 py-0.5">
+            <span className="ml-2 text-[11px] bg-primary-500 text-white
+              rounded-full px-1.5 py-0.5 font-medium animate-popIn">
               {totalUnread > 99 ? '99+' : totalUnread}
             </span>
           )}
@@ -113,13 +121,15 @@ export function Sidebar() {
       {/* Chat list */}
       <div className="flex-1 overflow-y-auto scrollbar-thin">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+          <div className="flex flex-col items-center justify-center h-40 text-gray-400
+            animate-fadeIn">
             <span className="text-3xl mb-2">💬</span>
             <p className="text-sm">{search ? 'No chats found' : 'No chats yet'}</p>
             {!search && (
               <button
                 onClick={() => setShowNewChat(true)}
-                className="mt-2 text-sm text-primary-500 hover:underline"
+                className="mt-3 text-sm text-primary-500 hover:text-primary-600
+                  transition-colors font-medium"
               >
                 Start a conversation
               </button>
@@ -148,13 +158,13 @@ function SideMenuItem({ icon, label, onClick, danger }: {
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition
+      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors
         ${danger
           ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'
-          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+          : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
         }`}
     >
-      <span>{icon}</span>
+      <span className="text-base">{icon}</span>
       {label}
     </button>
   )

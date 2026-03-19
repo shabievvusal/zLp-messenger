@@ -24,7 +24,6 @@ export function NewChatModal({ onClose }: Props) {
   const [searching, setSearching] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout>>()
 
-  // Debounced user search
   useEffect(() => {
     clearTimeout(timerRef.current)
     if (query.length < 2) { setResults([]); return }
@@ -74,25 +73,27 @@ export function NewChatModal({ onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-sm shadow-xl overflow-hidden"
+        className="modal-card w-full max-w-sm overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="px-6 pt-6 pb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">New Chat</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            New Chat
+          </h2>
 
           {/* Tabs */}
-          <div className="flex rounded-lg bg-gray-100 dark:bg-gray-700 p-1">
+          <div className="flex rounded-xl bg-black/5 dark:bg-white/5 p-1 gap-1">
             {(['private', 'group'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`flex-1 py-1.5 text-sm font-medium rounded-md transition ${
+                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                   tab === t
-                    ? 'bg-white dark:bg-gray-600 shadow text-gray-900 dark:text-white'
-                    : 'text-gray-500 dark:text-gray-400'
+                    ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
               >
                 {t === 'private' ? '👤 Private' : '👥 Group'}
@@ -102,7 +103,7 @@ export function NewChatModal({ onClose }: Props) {
         </div>
 
         {tab === 'private' ? (
-          <div>
+          <div className="animate-fadeIn">
             {/* Search input */}
             <div className="px-6 pb-3">
               <div className="relative">
@@ -117,13 +118,11 @@ export function NewChatModal({ onClose }: Props) {
                   placeholder="Search by username or name..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 border border-gray-300 dark:border-gray-600
-                    rounded-lg bg-white dark:bg-gray-700 text-sm
-                    focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="input-base pl-9 pr-10 text-sm"
                 />
                 {searching && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4
-                    border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2
+                    spinner border-primary-500" />
                 )}
               </div>
             </div>
@@ -131,20 +130,28 @@ export function NewChatModal({ onClose }: Props) {
             {/* Results */}
             <div className="max-h-72 overflow-y-auto scrollbar-thin">
               {query.length >= 2 && results.length === 0 && !searching && (
-                <p className="text-center text-gray-400 text-sm py-8">No users found</p>
+                <p className="text-center text-gray-400 text-sm py-8 animate-fadeIn">
+                  No users found
+                </p>
               )}
               {query.length < 2 && (
-                <p className="text-center text-gray-400 text-sm py-8">Type at least 2 characters</p>
+                <p className="text-center text-gray-400 text-sm py-8">
+                  Type at least 2 characters
+                </p>
               )}
-              {results.map((user) => (
+              {results.map((user, i) => (
                 <button
                   key={user.id}
                   onClick={() => openPrivateChat(user)}
                   disabled={loading}
                   className="w-full flex items-center gap-3 px-6 py-3
-                    hover:bg-gray-50 dark:hover:bg-gray-700 transition text-left"
+                    hover:bg-black/5 dark:hover:bg-white/5
+                    active:bg-black/8 dark:active:bg-white/8
+                    transition-colors text-left animate-fadeIn"
+                  style={{ animationDelay: `${i * 0.04}s` }}
                 >
-                  <Avatar name={`${user.first_name} ${user.last_name ?? ''}`} url={user.avatar_url} size={40} />
+                  <Avatar name={`${user.first_name} ${user.last_name ?? ''}`}
+                    url={user.avatar_url} size={40} />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
                       {user.first_name} {user.last_name}
@@ -158,28 +165,39 @@ export function NewChatModal({ onClose }: Props) {
             </div>
           </div>
         ) : (
-          <div className="px-6 pb-6 space-y-3">
+          <div className="px-6 pb-6 space-y-3 animate-fadeIn">
             <input
               type="text"
               placeholder="Group name"
               value={groupTitle}
               onChange={(e) => setGroupTitle(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg
-                bg-white dark:bg-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              onKeyDown={(e) => e.key === 'Enter' && handleGroup()}
+              className="input-base text-sm"
             />
             <button
               onClick={handleGroup}
               disabled={loading || !groupTitle.trim()}
-              className="w-full py-2 bg-primary-600 text-white rounded-lg font-medium
-                hover:bg-primary-700 disabled:opacity-50 transition"
+              className="w-full py-2.5 bg-primary-500 hover:bg-primary-600
+                active:bg-primary-700 text-white rounded-xl font-medium
+                disabled:opacity-40 disabled:cursor-not-allowed
+                transition-all duration-150 active:scale-[0.98]
+                shadow-sm shadow-primary-500/30"
             >
-              {loading ? 'Creating...' : 'Create Group'}
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="spinner" /> Creating...
+                </span>
+              ) : 'Create Group'}
             </button>
           </div>
         )}
 
-        <div className="px-6 pb-6">
-          <button onClick={onClose} className="w-full py-2 text-sm text-gray-400 hover:text-gray-600">
+        <div className="px-6 pb-5">
+          <button
+            onClick={onClose}
+            className="w-full py-2 text-sm text-gray-400 hover:text-gray-600
+              dark:hover:text-gray-300 transition-colors"
+          >
             Cancel
           </button>
         </div>

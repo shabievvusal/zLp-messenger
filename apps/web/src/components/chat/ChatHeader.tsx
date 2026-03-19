@@ -56,14 +56,16 @@ export function ChatHeader({ chat, onStartCall, onOpenProfile }: Props) {
   }, [searchQ, chat.id])
 
   return (
-    <header className="flex flex-col bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 z-10 shadow-sm">
+    <header className="flex flex-col bg-white/80 dark:bg-gray-800/80 backdrop-blur-md
+      border-b border-black/8 dark:border-white/8 z-10 shadow-sm">
       <div className="flex items-center gap-3 px-4 py-3">
-        <button onClick={onOpenProfile} className="rounded-full focus:outline-none" title="View profile">
+        <button onClick={onOpenProfile} className="rounded-full focus:outline-none
+          transition-transform hover:scale-105 active:scale-95" title="View profile">
           <Avatar name={title} url={chat.avatar_url} size={40} />
         </button>
         <div className="flex-1 min-w-0 cursor-pointer" onClick={onOpenProfile}>
           <p className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">{title}</p>
-          <p className={`text-xs truncate ${typingCount > 0 ? 'text-primary-500 italic' : 'text-gray-500 dark:text-gray-400'}`}>
+          <p className={`text-xs truncate transition-colors ${typingCount > 0 ? 'text-primary-500 italic' : 'text-gray-500 dark:text-gray-400'}`}>
             {subtitle}
           </p>
         </div>
@@ -116,7 +118,7 @@ export function ChatHeader({ chat, onStartCall, onOpenProfile }: Props) {
 
       {/* Строка поиска */}
       {showSearch && (
-        <div className="px-4 pb-2">
+        <div className="px-4 pb-2 animate-slideDown">
           <div className="relative">
             <input
               ref={searchRef}
@@ -124,10 +126,7 @@ export function ChatHeader({ chat, onStartCall, onOpenProfile }: Props) {
               onChange={(e) => setSearchQ(e.target.value)}
               onKeyDown={(e) => e.key === 'Escape' && setShowSearch(false)}
               placeholder="Поиск по сообщениям..."
-              className="w-full pl-9 pr-4 py-1.5 text-sm rounded-xl
-                bg-gray-100 dark:bg-gray-700 border border-transparent
-                focus:outline-none focus:border-primary-500
-                text-gray-900 dark:text-gray-100 placeholder-gray-400"
+              className="input-base pl-9 pr-4 py-1.5 text-sm"
             />
             <svg className="absolute left-2.5 top-2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -139,12 +138,13 @@ export function ChatHeader({ chat, onStartCall, onOpenProfile }: Props) {
 
           {/* Результаты поиска */}
           {searchResults.length > 0 && (
-            <div className="mt-1 max-h-48 overflow-y-auto rounded-xl
-              bg-white dark:bg-gray-800 shadow-lg border border-gray-100 dark:border-gray-700">
+            <div className="mt-1 max-h-48 overflow-y-auto rounded-xl scrollbar-thin
+              bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm
+              shadow-lg border border-black/5 dark:border-white/5 animate-fadeIn">
               {searchResults.map((msg) => (
                 <button
                   key={msg.id}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                  className="w-full text-left px-3 py-2 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                 >
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {msg.sender?.first_name} • {new Date(msg.created_at).toLocaleDateString()}
@@ -182,11 +182,11 @@ function IconBtn({
       title={title}
       onClick={onClick}
       disabled={disabled}
-      className={`w-8 h-8 rounded-full flex items-center justify-center transition
-        disabled:opacity-40 disabled:cursor-not-allowed
+      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all
+        active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed
         ${active
-          ? 'bg-primary-100 dark:bg-primary-900 text-primary-600 dark:text-primary-400'
-          : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+          ? 'bg-primary-100 dark:bg-primary-900/50 text-primary-600 dark:text-primary-400'
+          : 'hover:bg-black/8 dark:hover:bg-white/10 text-gray-600 dark:text-gray-300'
         }`}
     >
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

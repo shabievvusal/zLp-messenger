@@ -197,16 +197,19 @@ export function MessageInput({ chatId }: Props) {
       onDrop={handleDrop}
     >
       {isDragging && (
-        <div className="absolute inset-0 bg-primary-50 dark:bg-primary-900/20 z-10
-          flex items-center justify-center pointer-events-none">
-          <p className="text-primary-600 font-medium">Drop files to upload</p>
+        <div className="absolute inset-0 bg-primary-500/10 dark:bg-primary-500/20
+          backdrop-blur-sm z-10 flex flex-col items-center justify-center
+          pointer-events-none animate-fadeIn border-2 border-dashed border-primary-400 rounded-xl">
+          <span className="text-3xl mb-2">📎</span>
+          <p className="text-primary-600 dark:text-primary-400 font-semibold text-sm">Drop files to upload</p>
         </div>
       )}
 
       <ReplyBar />
 
       <div className="flex items-end gap-2 px-3 py-3
-        bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+        bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm
+        border-t border-black/8 dark:border-white/8">
 
         {recording ? (
           // Voice recording UI
@@ -232,7 +235,8 @@ export function MessageInput({ chatId }: Props) {
 
             {/* Textarea */}
             <div className="flex-1 relative flex items-end
-              bg-gray-100 dark:bg-gray-700 rounded-2xl px-3 py-2">
+              bg-black/5 dark:bg-white/8 rounded-2xl px-3 py-2
+              transition-shadow focus-within:ring-2 focus-within:ring-primary-500/30">
               <textarea
                 ref={textareaRef}
                 value={text}
@@ -273,16 +277,18 @@ export function MessageInput({ chatId }: Props) {
         {/* Send / Voice */}
         {text.trim() ? (
           <button onClick={handleSend} disabled={sending}
-            className="w-10 h-10 rounded-full bg-primary-500 hover:bg-primary-600
-              flex items-center justify-center transition disabled:opacity-50 flex-shrink-0">
+            className="w-10 h-10 rounded-full bg-primary-500 hover:bg-primary-600 active:scale-90
+              flex items-center justify-center transition-all disabled:opacity-50 flex-shrink-0
+              shadow-md shadow-primary-500/25">
             <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
             </svg>
           </button>
         ) : recording ? (
           <button onClick={stopRecording}
-            className="w-10 h-10 rounded-full bg-primary-500 hover:bg-primary-600
-              flex items-center justify-center transition flex-shrink-0">
+            className="w-10 h-10 rounded-full bg-primary-500 hover:bg-primary-600 active:scale-90
+              flex items-center justify-center transition-all flex-shrink-0
+              shadow-md shadow-primary-500/25">
             <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M6 6h12v12H6z" />
             </svg>

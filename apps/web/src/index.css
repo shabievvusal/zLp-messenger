@@ -17,16 +17,34 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     @apply bg-white dark:bg-surface-dark text-gray-900 dark:text-gray-100;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Smooth scrolling everywhere */
+  * {
+    scroll-behavior: smooth;
+  }
+
+  /* Better text selection */
+  ::selection {
+    @apply bg-primary-500/30;
   }
 }
 
 @layer components {
+  /* ── Message bubbles ──────────────────────────────────── */
+
   .bubble-out {
-    @apply bg-bubble-out dark:bg-bubble-out-dark rounded-[18px] rounded-br-[4px] px-3 py-2 shadow-sm;
+    @apply bg-bubble-out dark:bg-bubble-out-dark rounded-[18px] rounded-br-[4px]
+      px-3 py-2 shadow-sm;
   }
   .bubble-in {
-    @apply bg-bubble-in dark:bg-bubble-in-dark rounded-[18px] rounded-bl-[4px] px-3 py-2 shadow-sm;
+    @apply bg-bubble-in dark:bg-bubble-in-dark rounded-[18px] rounded-bl-[4px]
+      px-3 py-2 shadow-sm;
   }
+
+  /* ── Scrollbars ───────────────────────────────────────── */
 
   .scrollbar-hide {
     scrollbar-width: none;
@@ -38,12 +56,130 @@
 
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-color: rgba(0,0,0,0.15) transparent;
   }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-black/10 dark:bg-white/10 rounded-full;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-black/20 dark:bg-white/20;
+  }
+
+  /* ── Icon buttons ─────────────────────────────────────── */
 
   .icon-btn {
     @apply w-9 h-9 rounded-full flex items-center justify-center
       text-gray-500 dark:text-gray-400
-      hover:bg-gray-100 dark:hover:bg-gray-700 transition;
+      hover:bg-black/8 dark:hover:bg-white/8
+      active:scale-90
+      transition-all duration-150;
+  }
+
+  /* ── Glass card ───────────────────────────────────────── */
+
+  .glass {
+    @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl;
+  }
+
+  /* ── Input base ───────────────────────────────────────── */
+
+  .input-base {
+    @apply w-full px-4 py-2.5
+      border border-gray-200 dark:border-gray-700
+      rounded-xl
+      bg-white dark:bg-gray-800
+      text-gray-900 dark:text-gray-100
+      placeholder:text-gray-400 dark:placeholder:text-gray-500
+      focus:outline-none focus:ring-2 focus:ring-primary-500/50
+      focus:border-primary-500
+      transition-all duration-200;
+  }
+
+  /* ── Telegram-style chat background ──────────────────── */
+
+  .chat-bg {
+    background-color: #c8d9e5;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Ccircle cx='30' cy='30' r='1.5' fill='%23b0c8d8' fill-opacity='0.6'/%3E%3C/svg%3E");
+  }
+  .dark .chat-bg {
+    background-color: #0e1621;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Ccircle cx='30' cy='30' r='1.5' fill='%23ffffff' fill-opacity='0.03'/%3E%3C/svg%3E");
+  }
+
+  /* ── Context menu ─────────────────────────────────────── */
+
+  .ctx-menu {
+    @apply fixed z-50
+      bg-white dark:bg-gray-800
+      shadow-2xl rounded-2xl py-2
+      border border-black/5 dark:border-white/5
+      min-w-[200px]
+      animate-scaleIn;
+  }
+
+  /* ── Modal backdrop ───────────────────────────────────── */
+
+  .modal-backdrop {
+    @apply fixed inset-0 bg-black/40 backdrop-blur-sm z-50
+      flex items-center justify-center
+      animate-fadeIn;
+  }
+
+  .modal-card {
+    @apply bg-white dark:bg-gray-800
+      rounded-2xl shadow-2xl
+      border border-black/5 dark:border-white/5
+      animate-scaleIn;
+  }
+
+  /* ── Sidebar active item indicator ───────────────────── */
+
+  .chat-item-active::before {
+    content: '';
+    @apply absolute left-0 top-3 bottom-3 w-[3px] bg-primary-500 rounded-r-full;
+  }
+
+  /* ── Loading spinner ──────────────────────────────────── */
+
+  .spinner {
+    @apply w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin;
+  }
+
+  /* ── Shimmer skeleton ─────────────────────────────────── */
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgba(0,0,0,0.06) 25%,
+      rgba(0,0,0,0.12) 50%,
+      rgba(0,0,0,0.06) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+  .dark .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgba(255,255,255,0.04) 25%,
+      rgba(255,255,255,0.08) 50%,
+      rgba(255,255,255,0.04) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+}
+
+@layer utilities {
+  .hover\:bg-black\/8:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+  }
+  .dark .dark\:hover\:bg-white\/8:hover {
+    background-color: rgba(255, 255, 255, 0.08);
   }
 }

@@ -13,9 +13,10 @@ export function ReplyBar() {
   }
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800
-      border-t border-gray-100 dark:border-gray-700">
-      <div className={`w-1 self-stretch rounded-full flex-shrink-0 ${isEdit ? 'bg-yellow-400' : 'bg-primary-500'}`} />
+    <div className="flex items-center gap-2 px-4 py-2
+      bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm
+      border-t border-black/5 dark:border-white/5 animate-slideDown">
+      <div className={`w-0.5 self-stretch rounded-full flex-shrink-0 ${isEdit ? 'bg-yellow-400' : 'bg-primary-500'}`} />
       <div className="flex-1 min-w-0">
         <p className={`text-xs font-semibold ${isEdit ? 'text-yellow-500' : 'text-primary-500'}`}>
           {isEdit ? '✏️ Editing' : `↩ Reply to ${msg.sender?.first_name ?? 'message'}`}
@@ -27,7 +28,8 @@ export function ReplyBar() {
       <button
         onClick={dismiss}
         className="w-6 h-6 rounded-full flex items-center justify-center
-          text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+          text-gray-400 hover:text-gray-600 dark:hover:text-gray-200
+          hover:bg-black/8 dark:hover:bg-white/10 transition-colors text-xs"
       >
         ✕
       </button>

@@ -44,10 +44,53 @@ export default {
           '0%': { transform: 'translateX(100%)', opacity: '0' },
           '100%': { transform: 'translateX(0)', opacity: '1' },
         },
+        slideInLeft: {
+          '0%': { transform: 'translateX(-100%)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+        slideDown: {
+          '0%': { transform: 'translateY(-10px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        scaleIn: {
+          '0%': { transform: 'scale(0.92)', opacity: '0' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+        msgIn: {
+          '0%': { transform: 'translateY(6px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-8px)' },
+        },
+        popIn: {
+          '0%': { transform: 'scale(0.5)', opacity: '0' },
+          '70%': { transform: 'scale(1.05)' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
       },
       animation: {
         slideUp: 'slideUp 0.3s ease-out',
-        slideInRight: 'slideInRight 0.2s ease-out',
+        slideInRight: 'slideInRight 0.22s cubic-bezier(0.22,1,0.36,1)',
+        slideInLeft: 'slideInLeft 0.22s cubic-bezier(0.22,1,0.36,1)',
+        slideDown: 'slideDown 0.15s ease-out',
+        fadeIn: 'fadeIn 0.15s ease-out',
+        scaleIn: 'scaleIn 0.18s cubic-bezier(0.22,1,0.36,1)',
+        msgIn: 'msgIn 0.18s ease-out',
+        float: 'float 3s ease-in-out infinite',
+        popIn: 'popIn 0.25s cubic-bezier(0.22,1,0.36,1)',
+      },
+      transitionTimingFunction: {
+        spring: 'cubic-bezier(0.22, 1, 0.36, 1)',
       },
     },
   },
