@@ -1,11 +1,16 @@
 package media
 
 import (
+	"fmt"
+	"path"
+	"strconv"
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/zlp-messenger/backend/internal/auth"
 	chatpkg "github.com/zlp-messenger/backend/internal/chat"
 	"github.com/zlp-messenger/backend/internal/models"
-	"github.com/google/uuid"
 )
 
 type Handler struct {
@@ -200,4 +205,97 @@ func (h *Handler) UploadAvatar(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"avatar_url": url})
+}
+
+// GET /api/media/file/*
+// Streams media object from MinIO. Public endpoint because media tags (<img>/<audio>/<video>)
+// cannot attach Authorization header from bearer-token auth.
+func (h *Handler) GetFile(c *fiber.Ctx) error {
+	objectPath := strings.TrimPrefix(c.Params("*"), "/")
+	if objectPath == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "file path required")
+	}
+
+	// First request object metadata.
+	obj, stat, err := h.service.GetObject(c.Context(), objectPath, 0, 0)
+	if err != nil {
+		return fiber.NewError(fiber.StatusNotFound, "file not found")
+	}
+	_ = obj.Close()
+
+	c.Set("Accept-Ranges", "bytes")
+	if stat.ContentType != "" {
+		c.Set("Content-Type", stat.ContentType)
+	}
+	c.Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, path.Base(objectPath)))
+
+	rangeHeader := c.Get("Range")
+	if rangeHeader == "" {
+		stream, _, err := h.service.GetObject(c.Context(), objectPath, 0, 0)
+		if err != nil {
+			return fiber.NewError(fiber.StatusNotFound, "file not found")
+		}
+		defer stream.Close()
+		c.Set("Content-Length", strconv.FormatInt(stat.Size, 10))
+		return c.SendStream(stream)
+	}
+
+	start, end, ok := parseRangeHeader(rangeHeader, stat.Size)
+	if !ok {
+		return fiber.NewError(fiber.StatusRequestedRangeNotSatisfiable, "invalid range")
+	}
+
+	stream, _, err := h.service.GetObject(c.Context(), objectPath, start, end)
+	if err != nil {
+		return fiber.NewError(fiber.StatusNotFound, "file not found")
+	}
+	defer stream.Close()
+
+	length := end - start + 1
+	c.Status(fiber.StatusPartialContent)
+	c.Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, stat.Size))
+	c.Set("Content-Length", strconv.FormatInt(length, 10))
+	return c.SendStream(stream)
+}
+
+func parseRangeHeader(rangeHeader string, size int64) (int64, int64, bool) {
+	if !strings.HasPrefix(rangeHeader, "bytes=") || size <= 0 {
+		return 0, 0, false
+	}
+	spec := strings.TrimSpace(strings.TrimPrefix(rangeHeader, "bytes="))
+	parts := strings.SplitN(spec, "-", 2)
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+
+	// bytes=-N (suffix bytes)
+	if strings.TrimSpace(parts[0]) == "" {
+		suffix, err := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+		if err != nil || suffix <= 0 {
+			return 0, 0, false
+		}
+		if suffix > size {
+			suffix = size
+		}
+		return size - suffix, size - 1, true
+	}
+
+	start, err := strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
+	if err != nil || start < 0 || start >= size {
+		return 0, 0, false
+	}
+
+	// bytes=N- (to end)
+	if strings.TrimSpace(parts[1]) == "" {
+		return start, size - 1, true
+	}
+
+	end, err := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+	if err != nil || end < start {
+		return 0, 0, false
+	}
+	if end >= size {
+		end = size - 1
+	}
+	return start, end, true
 }

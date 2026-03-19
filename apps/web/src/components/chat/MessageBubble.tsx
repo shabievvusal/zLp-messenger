@@ -242,7 +242,11 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
                     {photos.map((a, idx) => (
                       <button
                         key={a.id}
-                        onClick={() => handlePhotoClick(a.id)}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handlePhotoClick(a.id)
+                        }}
                         className="relative rounded-lg overflow-hidden group cursor-zoom-in"
                         style={{ aspectRatio: photos.length === 1 ? '4 / 5' : '1 / 1' }}
                       >
@@ -267,7 +271,10 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
                     key={a.id}
                     src={a.url}
                     className="max-w-full rounded-xl max-h-80 cursor-pointer mt-2"
-                    onClick={() => openMedia(a.url, 'video')}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openMedia(a.url, 'video')
+                    }}
                   />
                 ))}
 

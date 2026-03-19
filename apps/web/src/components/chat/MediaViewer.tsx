@@ -1,16 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useChatCtx } from '@/contexts/ChatContext'
 
 export function MediaViewer() {
   const { mediaViewer, closeMedia, mediaGallery, galleryIndex, nextGalleryImage, prevGalleryImage } = useChatCtx()
   const touchStartX = useRef(0)
-  const [isGalleryMode, setIsGalleryMode] = useState(false)
   const hasGallery = !!mediaGallery && mediaGallery.length > 0
-
-  // Render any media gallery (even one photo), and allow navigation only for 2+ items.
-  useEffect(() => {
-    setIsGalleryMode(hasGallery)
-  }, [hasGallery])
 
   useEffect(() => {
     if (!mediaViewer && !mediaGallery) return
@@ -24,13 +18,15 @@ export function MediaViewer() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [mediaViewer, mediaGallery, isGalleryMode, closeMedia, nextGalleryImage, prevGalleryImage])
+  }, [mediaViewer, mediaGallery, closeMedia, nextGalleryImage, prevGalleryImage])
 
   if (!mediaViewer && !mediaGallery) return null
 
   // Show gallery
-  if (isGalleryMode && mediaGallery) {
-    const current = mediaGallery[galleryIndex]
+  if (hasGallery && mediaGallery) {
+    const safeIndex = Math.min(Math.max(galleryIndex, 0), mediaGallery.length - 1)
+    const current = mediaGallery[safeIndex]
+    if (!current) return null
     return (
       <div
         className="fixed inset-0 z-[100] bg-black/92 backdrop-blur-sm
@@ -49,7 +45,7 @@ export function MediaViewer() {
 
         {/* Counter */}
         <div className="absolute top-4 left-4 text-white/70 text-sm font-medium">
-          {galleryIndex + 1} / {mediaGallery.length}
+          {safeIndex + 1} / {mediaGallery.length}
         </div>
 
         {/* Media container */}

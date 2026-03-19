@@ -69,7 +69,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const openGallery = useCallback((items: MediaGalleryItem[], startIndex: number) => {
     setMediaViewer(null)
     setMediaGallery(items)
-    setGalleryIndex(startIndex)
+    setGalleryIndex(startIndex >= 0 && startIndex < items.length ? startIndex : 0)
   }, [])
 
   const closeGallery = useCallback(() => {

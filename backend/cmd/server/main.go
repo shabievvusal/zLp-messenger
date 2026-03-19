@@ -96,6 +96,9 @@ func main() {
 	authGroup.Post("/refresh", authHandler.Refresh)
 	authGroup.Post("/logout", authHandler.Logout)
 
+	// Media file streaming (public, used by <img>/<audio>/<video> tags)
+	api.Get("/media/file/*", mediaHandler.GetFile)
+
 	// Auth (protected)
 	protected := api.Group("", middleware.RequireAuth)
 
