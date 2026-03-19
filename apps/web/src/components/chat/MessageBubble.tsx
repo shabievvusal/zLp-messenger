@@ -123,23 +123,24 @@ export function MessageBubble({ msg, isOwn, isGrouped, chatType }: Props) {
   const photoAttachments = msg.attachments?.filter((a) => a.type === 'photo' || a.type === 'gif') ?? []
   const hasMedia = photoAttachments.length > 0
 
+  // Debug: log sender info for incoming messages
+  if (!isOwn) {
+    console.log('[MessageBubble] incoming msg:', msg.id, 'sender_id:', msg.sender_id, 'sender:', msg.sender)
+  }
+
   return (
     <div
       className={clsx(
-        'flex items-end gap-1.5 group animate-msgIn',
-        isOwn ? 'flex-row-reverse' : 'flex-row',
+        'flex flex-row items-end gap-1.5 group animate-msgIn',
         isSelecting && 'cursor-pointer',
-        isSelected && (isOwn ? 'bg-primary-500/10' : 'bg-primary-500/10'),
+        isSelected && 'bg-primary-500/10',
         'transition-colors rounded-lg px-1'
       )}
       onClick={handleBubbleClick}
     >
-      {/* Selection checkbox */}
+      {/* Selection checkbox — to the left of avatar for all */}
       {isSelecting && (
-        <div className={clsx(
-          'flex-shrink-0 self-center',
-          isOwn ? 'order-last ml-1' : 'order-first mr-1'
-        )}>
+        <div className="flex-shrink-0 self-center order-first mr-1">
           <div className={clsx(
             'w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all',
             isSelected
@@ -155,10 +156,10 @@ export function MessageBubble({ msg, isOwn, isGrouped, chatType }: Props) {
         </div>
       )}
 
-      {/* Sender avatar for incoming messages */}
-      {!isSelecting && !isOwn && (
+      {/* Avatar slot — always 28px wide so own/incoming bubbles stay aligned */}
+      {!isSelecting && (
         <div className="w-7 flex-shrink-0 self-end">
-          {!isGrouped && (
+          {!isOwn && !isGrouped && (
             <Avatar
               name={msg.sender
                 ? `${msg.sender.first_name}${msg.sender.last_name ? ' ' + msg.sender.last_name : ''}`
@@ -349,7 +350,7 @@ export function MessageBubble({ msg, isOwn, isGrouped, chatType }: Props) {
 
         {/* Reactions */}
         {Object.keys(reactionGroups).length > 0 && (
-          <div className={clsx('flex flex-wrap gap-1 mt-1', isOwn ? 'justify-end' : 'justify-start')}>
+          <div className="flex flex-wrap gap-1 mt-1 justify-start">
             {Object.entries(reactionGroups).map(([emoji, { count, mine }]) => (
               <button
                 key={emoji}
@@ -369,10 +370,7 @@ export function MessageBubble({ msg, isOwn, isGrouped, chatType }: Props) {
 
         {/* Quick action buttons (visible on hover, hidden in select mode) */}
         {!isSelecting && (
-          <div className={clsx(
-            'flex items-center gap-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity',
-            isOwn ? 'justify-end' : 'justify-start'
-          )}>
+          <div className="flex items-center gap-1 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity justify-start">
             <QuickBtn title="Ответить" onClick={() => setReplyTo(msg)}>↩</QuickBtn>
             <QuickBtn title="Реакция" onClick={(e) => { e.stopPropagation(); openMenu(e) }}>😊</QuickBtn>
             {isOwn && <QuickBtn title="Редактировать" onClick={() => setEditMsg(msg)}>✏️</QuickBtn>}
