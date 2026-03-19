@@ -5,18 +5,19 @@ export function MediaViewer() {
   const { mediaViewer, closeMedia, mediaGallery, galleryIndex, nextGalleryImage, prevGalleryImage } = useChatCtx()
   const touchStartX = useRef(0)
   const [isGalleryMode, setIsGalleryMode] = useState(false)
+  const hasGallery = !!mediaGallery && mediaGallery.length > 0
 
-  // Determine if we're showing gallery or single media
+  // Render any media gallery (even one photo), and allow navigation only for 2+ items.
   useEffect(() => {
-    setIsGalleryMode(!!mediaGallery && mediaGallery.length > 1)
-  }, [mediaGallery])
+    setIsGalleryMode(hasGallery)
+  }, [hasGallery])
 
   useEffect(() => {
     if (!mediaViewer && !mediaGallery) return
     
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeMedia()
-      if (isGalleryMode) {
+      if (mediaGallery && mediaGallery.length > 1) {
         if (e.key === 'ArrowRight') nextGalleryImage()
         if (e.key === 'ArrowLeft') prevGalleryImage()
       }
@@ -135,7 +136,7 @@ export function MediaViewer() {
 
         <div onClick={(e) => e.stopPropagation()}
           className="max-w-[90vw] max-h-[90vh] animate-scaleIn">
-          {mediaViewer.type === 'photo' ? (
+          {mediaViewer.type === 'photo' || mediaViewer.type === 'gif' ? (
             <img
               src={mediaViewer.url}
               alt=""

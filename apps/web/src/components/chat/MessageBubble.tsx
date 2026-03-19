@@ -34,6 +34,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
   const menuRef = useRef<HTMLDivElement>(null)
   const removeMessage = useChatStore((s) => s.removeMessage)
   const updateMessage = useChatStore((s) => s.updateMessage)
+  const chatMessages = useChatStore((s) => s.messages[msg.chat_id] ?? [])
   const currentUser = useAuthStore((s) => s.user)
   const {
     setReplyTo, setEditMsg, openMedia, openGallery, setForwardMsg,
@@ -106,6 +107,9 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
     if (r.user_id === currentUser?.id) acc[r.emoji].mine = true
     return acc
   }, {})
+
+  const photoAttachments = msg.attachments?.filter((a) => a.type === 'photo' || a.type === 'gif') ?? []
+  const hasMedia = photoAttachments.length > 0
 
   return (
     <div
@@ -180,7 +184,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
           </div>
         )}
 
-        <div className={clsx(isOwn ? 'bubble-out' : 'bubble-in')}>
+        <div className={clsx(isOwn ? 'bubble-out' : 'bubble-in', hasMedia && 'px-2 py-1.5')}>
 
           {/* Sender name (in groups, for incoming only) */}
           {!isOwn && !isGrouped && msg.sender && (
@@ -191,25 +195,40 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
 
           {/* Text */}
           {msg.text && (
-            <p className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words leading-relaxed">
+            <p className={clsx(
+              'text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words',
+              hasMedia ? 'text-xs leading-snug' : 'text-sm leading-relaxed'
+            )}>
               {msg.text}
             </p>
           )}
 
           {/* Attachments */}
           {(msg.attachments ?? []).length > 0 && (() => {
-            const photos = msg.attachments?.filter(a => a.type === 'photo' || a.type === 'gif') ?? []
+            const photos = photoAttachments
             const videos = msg.attachments?.filter(a => a.type === 'video') ?? []
             const otherMedia = msg.attachments?.filter(a => a.type === 'voice' || a.type === 'audio' || a.type === 'document') ?? []
 
-            const handlePhotoClick = (index: number) => {
-              const galleryItems = photos.map(p => ({
-                id: p.id,
-                url: p.url,
-                type: p.type as 'photo' | 'video' | 'gif',
-                thumbnail: p.thumbnail,
-              }))
-              openGallery(galleryItems, index)
+            const handlePhotoClick = (attachmentId: string) => {
+              const galleryItems = chatMessages.flatMap((message) =>
+                (message.attachments ?? [])
+                  .filter((a) => a.type === 'photo' || a.type === 'gif')
+                  .map((a) => ({
+                    id: a.id,
+                    url: a.url,
+                    type: a.type as 'photo' | 'gif',
+                    thumbnail: a.thumbnail,
+                  }))
+              )
+              const startIndex = galleryItems.findIndex((item) => item.id === attachmentId)
+              if (startIndex >= 0) {
+                openGallery(galleryItems, startIndex)
+              } else {
+                const fallback = photos.find((p) => p.id === attachmentId) ?? photos[0]
+                if (fallback) {
+                  openMedia(fallback.url, fallback.type as 'photo' | 'gif')
+                }
+              }
             }
 
             return (
@@ -218,14 +237,14 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
                 {photos.length > 0 && (
                   <div className="mt-2 grid gap-1" style={{
                     gridTemplateColumns: photos.length === 1 ? '1fr' : photos.length === 2 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
-                    maxWidth: photos.length === 1 ? '100%' : '320px',
+                    maxWidth: photos.length === 1 ? '260px' : '300px',
                   }}>
                     {photos.map((a, idx) => (
                       <button
                         key={a.id}
-                        onClick={() => handlePhotoClick(idx)}
+                        onClick={() => handlePhotoClick(a.id)}
                         className="relative rounded-lg overflow-hidden group cursor-zoom-in"
-                        style={{ aspectRatio: '1' }}
+                        style={{ aspectRatio: photos.length === 1 ? '4 / 5' : '1 / 1' }}
                       >
                         <img
                           src={a.thumbnail || a.url}

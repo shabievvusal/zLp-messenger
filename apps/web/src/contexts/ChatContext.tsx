@@ -8,8 +8,8 @@ interface ChatContextValue {
   setEditMsg: (msg: Message | null) => void
   forwardMsg: Message | null
   setForwardMsg: (msg: Message | null) => void
-  mediaViewer: { url: string; type: 'photo' | 'video' } | null
-  openMedia: (url: string, type: 'photo' | 'video') => void
+  mediaViewer: { url: string; type: 'photo' | 'video' | 'gif' } | null
+  openMedia: (url: string, type: 'photo' | 'video' | 'gif') => void
   closeMedia: () => void
   // Gallery view (multiple photos)
   mediaGallery: MediaGalleryItem[] | null
@@ -37,7 +37,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [replyTo, setReplyToState] = useState<Message | null>(null)
   const [editMsg, setEditMsgState] = useState<Message | null>(null)
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null)
-  const [mediaViewer, setMediaViewer] = useState<{ url: string; type: 'photo' | 'video' } | null>(null)
+  const [mediaViewer, setMediaViewer] = useState<{ url: string; type: 'photo' | 'video' | 'gif' } | null>(null)
   const [mediaGallery, setMediaGallery] = useState<MediaGalleryItem[] | null>(null)
   const [galleryIndex, setGalleryIndex] = useState(0)
   const [clearFn, setClearFn] = useState<(() => void) | null>(null)
@@ -54,13 +54,20 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setReplyToState(null)
   }, [])
 
-  const openMedia = useCallback((url: string, type: 'photo' | 'video') => {
+  const openMedia = useCallback((url: string, type: 'photo' | 'video' | 'gif') => {
+    setMediaGallery(null)
+    setGalleryIndex(0)
     setMediaViewer({ url, type })
   }, [])
 
-  const closeMedia = useCallback(() => setMediaViewer(null), [])
+  const closeMedia = useCallback(() => {
+    setMediaViewer(null)
+    setMediaGallery(null)
+    setGalleryIndex(0)
+  }, [])
 
   const openGallery = useCallback((items: MediaGalleryItem[], startIndex: number) => {
+    setMediaViewer(null)
     setMediaGallery(items)
     setGalleryIndex(startIndex)
   }, [])
