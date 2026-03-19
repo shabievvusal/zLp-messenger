@@ -7,26 +7,35 @@ interface Props {
   chat: Chat
   active: boolean
   onClick: () => void
+  onArchive?: () => void      // "В архив"
+  onUnarchive?: () => void    // "Из архива"
+}
+
+// Telegram-style sender name colors
+const SENDER_COLORS = [
+  '#e17076', '#faa774', '#a695e7', '#7bc862',
+  '#6ec9cb', '#65aadd', '#ee7aae',
+]
+function getSenderColor(id: string): string {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h)
+  return SENDER_COLORS[Math.abs(h) % SENDER_COLORS.length]
 }
 
 function formatTime(dateStr: string): string {
   const date = new Date(dateStr)
   const now = new Date()
-  const isToday = date.toDateString() === now.toDateString()
-  if (isToday) {
+  if (date.toDateString() === now.toDateString()) {
     return date.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })
   }
-  const diffMs = now.getTime() - date.getTime()
-  const diffDays = diffMs / 86400000
-  if (diffDays < 7) {
-    // Short day name: пн, вт, ср…
+  if (now.getTime() - date.getTime() < 7 * 86400000) {
     return date.toLocaleDateString('ru', { weekday: 'short' })
   }
   return date.toLocaleDateString('ru', { day: '2-digit', month: '2-digit' })
 }
 
-export function ChatItem({ chat, active, onClick }: Props) {
-  const title = chat.title ?? 'Unknown'
+export function ChatItem({ chat, active, onClick, onArchive, onUnarchive }: Props) {
+  const title = chat.type === 'saved' ? 'Избранное' : (chat.title ?? 'Unknown')
   const lastMsg = chat.last_message
   const unreadMentions = useChatStore((s) => s.unreadMentions[chat.id] ?? 0)
   const mutedChats = useChatStore((s) => s.mutedChats)
@@ -38,139 +47,190 @@ export function ChatItem({ chat, active, onClick }: Props) {
 
   const isGroup = chat.type === 'group' || chat.type === 'channel'
 
-  // Build last-message preview
+  // Build preview text and sender info
   let preview = ''
-  let senderPrefix = ''
+  let senderId = ''
+  let senderName = ''
+
   if (lastMsg) {
     if (lastMsg.type === 'service') {
       preview = lastMsg.text ?? ''
     } else {
       if (lastMsg.attachments?.length) {
         const t = lastMsg.attachments[0].type
-        preview = t === 'photo' ? '📷 Фото'
-          : t === 'video' ? '🎥 Видео'
-          : t === 'voice' ? '🎤 Голосовое'
-          : t === 'audio' ? '🎵 Аудио'
-          : t === 'sticker' ? '🃏 Стикер'
-          : t === 'gif' ? '🎞 GIF'
-          : `📎 ${lastMsg.attachments[0].file_name ?? 'Файл'}`
+        preview = t === 'photo' ? 'Фото'
+          : t === 'video' ? 'Видео'
+          : t === 'voice' ? 'Голосовое сообщение'
+          : t === 'audio' ? 'Аудио'
+          : t === 'sticker' ? 'Стикер'
+          : t === 'gif' ? 'GIF'
+          : (lastMsg.attachments[0].file_name ?? 'Файл')
         if (lastMsg.text) preview = lastMsg.text
       } else {
         preview = lastMsg.text ?? ''
       }
-
-      if (isGroup && lastMsg.sender?.first_name) {
-        senderPrefix = `${lastMsg.sender.first_name}: `
+      if (isGroup && lastMsg.sender) {
+        senderName = lastMsg.sender.first_name
+        senderId = lastMsg.sender.id
       }
     }
   }
 
   const hasUnread = chat.unread_count > 0
+  const senderColor = senderId ? getSenderColor(senderId) : undefined
 
   return (
-    <button
-      onClick={onClick}
-      className={clsx(
-        'relative w-full flex items-center gap-3 px-3 py-2.5',
-        'transition-colors duration-100',
-        'hover:bg-black/5 dark:hover:bg-white/5',
-        active && 'bg-primary-500/10 dark:bg-primary-400/10'
-      )}
-    >
-      {/* Active bar */}
-      {active && (
-        <div className="absolute left-0 top-2.5 bottom-2.5 w-[3px]
-          bg-primary-500 rounded-r-full" />
-      )}
+    <div className="group relative">
+      <button
+        onClick={onClick}
+        className={clsx(
+          'relative w-full flex items-center gap-3 px-3 py-2.5',
+          'transition-colors duration-100 text-left',
+          'hover:bg-black/5 dark:hover:bg-white/5',
+          active && 'bg-primary-500/10 dark:bg-primary-400/10'
+        )}
+      >
+        {/* Active bar */}
+        {active && (
+          <div className="absolute left-0 top-2.5 bottom-2.5 w-[3px]
+            bg-primary-500 rounded-r-full" />
+        )}
 
-      {/* Avatar with online dot */}
-      <div className="relative flex-shrink-0">
-        <Avatar name={title} url={chat.avatar_url} size={50} />
-        {/* Online dot (for private chats — handled externally if needed) */}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 min-w-0 text-left">
-        {/* Row 1: title + time */}
-        <div className="flex items-center justify-between gap-1 mb-0.5">
-          <div className="flex items-center gap-1 min-w-0 flex-1">
-            {/* Chat type icon */}
-            {chat.type === 'channel' && (
-              <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14v-4H7l5-8v4h4l-5 8z" />
-              </svg>
-            )}
-            {chat.type === 'group' && (
-              <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            )}
-
-            <span className={clsx(
-              'font-semibold text-sm truncate leading-tight',
-              active
-                ? 'text-primary-600 dark:text-primary-400'
-                : 'text-gray-900 dark:text-gray-100'
-            )}>
-              {title}
-            </span>
-          </div>
-
-          {/* Time + mute icon */}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {isMuted && (
-              <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-              </svg>
-            )}
-            {lastMsg && (
-              <span className="text-[11px] text-gray-400 dark:text-gray-500">
-                {formatTime(lastMsg.created_at)}
-              </span>
-            )}
-          </div>
+        {/* Avatar */}
+        <div className="relative flex-shrink-0">
+          {chat.type === 'saved' ? (
+            <SavedAvatar />
+          ) : (
+            <Avatar name={title} url={chat.avatar_url} size={50} />
+          )}
         </div>
 
-        {/* Row 2: preview + badges */}
-        <div className="flex items-center justify-between gap-1">
-          <p className={clsx(
-            'text-xs truncate leading-tight',
-            lastMsg?.type === 'service'
-              ? 'italic text-gray-400 dark:text-gray-500'
-              : 'text-gray-500 dark:text-gray-400'
-          )}>
-            {senderPrefix && (
-              <span className="text-gray-700 dark:text-gray-300 font-medium">
-                {senderPrefix}
-              </span>
-            )}
-            {preview || '\u00a0'}
-          </p>
+        {/* Content */}
+        <div className="flex-1 min-w-0">
 
-          {/* Badges */}
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {unreadMentions > 0 && (
-              <span className="bg-red-500 text-white text-[10px] font-bold
-                rounded-full w-4 h-4 flex items-center justify-center">
-                @
-              </span>
-            )}
-            {hasUnread && (
+          {/* Row 1: title + time */}
+          <div className="flex items-center justify-between gap-1 mb-[2px]">
+            <div className="flex items-center gap-1 min-w-0 flex-1">
+              {chat.type === 'channel' && (
+                <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14v-4H7l5-8v4h4l-5 8z" />
+                </svg>
+              )}
+              {chat.type === 'group' && (
+                <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              )}
               <span className={clsx(
-                'text-[11px] font-medium rounded-full min-w-[20px] h-5',
-                'flex items-center justify-center px-1.5',
-                isMuted
-                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                  : 'bg-primary-500 text-white shadow-sm shadow-primary-500/30'
+                'font-semibold text-sm truncate leading-tight',
+                active
+                  ? 'text-primary-600 dark:text-primary-400'
+                  : 'text-gray-900 dark:text-gray-100'
               )}>
-                {chat.unread_count > 99 ? '99+' : chat.unread_count}
+                {title}
               </span>
-            )}
+            </div>
+
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {isMuted && (
+                <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                </svg>
+              )}
+              {lastMsg && (
+                <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                  {formatTime(lastMsg.created_at)}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Row 2: sender + preview + badges */}
+          <div className="flex items-center justify-between gap-1">
+            <div className="flex-1 min-w-0">
+              {senderName ? (
+                <p className="text-xs truncate leading-tight">
+                  <span style={{ color: senderColor }} className="font-medium">
+                    {senderName}:&nbsp;
+                  </span>
+                  <span className="text-gray-500 dark:text-gray-400">{preview}</span>
+                </p>
+              ) : (
+                <p className={clsx(
+                  'text-xs truncate leading-tight',
+                  lastMsg?.type === 'service'
+                    ? 'italic text-gray-400 dark:text-gray-500'
+                    : 'text-gray-500 dark:text-gray-400'
+                )}>
+                  {preview || '\u00a0'}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {unreadMentions > 0 && (
+                <span className="bg-red-500 text-white text-[10px] font-bold
+                  rounded-full w-4 h-4 flex items-center justify-center">
+                  @
+                </span>
+              )}
+              {hasUnread && (
+                <span className={clsx(
+                  'text-[11px] font-semibold rounded-full min-w-[20px] h-5',
+                  'flex items-center justify-center px-1.5',
+                  isMuted
+                    ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                    : 'bg-primary-500 text-white'
+                )}>
+                  {chat.unread_count > 99 ? '99+' : chat.unread_count}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </button>
+      </button>
+
+      {/* Hover: archive / unarchive button */}
+      {(onArchive || onUnarchive) && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onArchive ? onArchive() : onUnarchive?.() }}
+          title={onArchive ? 'В архив' : 'Из архива'}
+          className="absolute right-2 top-1/2 -translate-y-1/2
+            opacity-0 group-hover:opacity-100 transition-opacity
+            w-7 h-7 flex items-center justify-center rounded-full
+            text-gray-400 hover:text-gray-600 dark:hover:text-gray-300
+            hover:bg-black/8 dark:hover:bg-white/10"
+        >
+          {onArchive ? (
+            // Archive icon (box with down arrow)
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+          ) : (
+            // Unarchive icon (box with up arrow)
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-4 4l-4-4m0 0L7 12m4-4v8" />
+            </svg>
+          )}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Special bookmark avatar for Saved Messages
+function SavedAvatar() {
+  return (
+    <div className="w-[50px] h-[50px] rounded-full
+      bg-gradient-to-br from-primary-400 to-primary-600
+      flex items-center justify-center flex-shrink-0">
+      <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+      </svg>
+    </div>
   )
 }
