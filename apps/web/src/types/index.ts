@@ -119,7 +119,7 @@ export type WSEventType =
   | 'message_read' | 'chat_messages_read' | 'call_incoming' | 'call_accepted'
   | 'call_declined' | 'call_ended' | 'call_webrtc' | 'mention' | 'error'
   | 'group_call_joined' | 'group_call_member_joined' | 'group_call_member_left'
-  | 'group_call_ended' | 'group_call_webrtc'
+  | 'group_call_ended' | 'group_call_webrtc' | 'group_screen_share'
 
 export interface WSEvent {
   type: WSEventType

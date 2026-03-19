@@ -416,6 +416,25 @@ func (h *Hub) handleEvent(c *Client, event IncomingEvent) {
 			}
 		}
 
+	// ── GROUP SCREEN SHARING STATUS ─────────────────────────────
+
+	case EventGroupScreenShare:
+		chatID := parseUUID(event.Payload, "chat_id")
+		if chatID == uuid.Nil {
+			return
+		}
+		callID, _ := event.Payload["call_id"].(string)
+		isSharing, _ := event.Payload["is_sharing"].(bool)
+		h.BroadcastToChat(chatID, OutgoingEvent{
+			Type: EventGroupScreenShare,
+			Payload: map[string]any{
+				"call_id":    callID,
+				"chat_id":    chatID,
+				"user_id":    c.UserID,
+				"is_sharing": isSharing,
+			},
+		}, &c.UserID)
+
 	// ── GROUP WebRTC SIGNALING ──────────────────────────────────
 
 	case EventGroupWebRTCOffer, EventGroupWebRTCAnswer, EventGroupWebRTCICE:

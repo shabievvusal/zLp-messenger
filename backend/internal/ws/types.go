@@ -21,6 +21,7 @@ const (
 	EventGroupWebRTCOffer  = "group_webrtc_offer"
 	EventGroupWebRTCAnswer = "group_webrtc_answer"
 	EventGroupWebRTCICE    = "group_webrtc_ice"
+	EventGroupScreenShare  = "group_screen_share" // screen sharing status (client→server + broadcast)
 )
 
 // Server → Client

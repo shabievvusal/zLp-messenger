@@ -148,6 +148,15 @@ export function useGroupWebRTC(send: SendFn) {
       call_id: callIdRef.current,
       data: answer,
     })
+
+    // If we're currently screen sharing, add the screen track to the new participant's PC.
+    // This triggers onnegotiationneeded → sends an updated offer with the video track.
+    if (screenStreamRef.current) {
+      const screenTrack = screenStreamRef.current.getVideoTracks()[0]
+      if (screenTrack && screenTrack.readyState === 'live') {
+        pc.addTrack(screenTrack, localStream)
+      }
+    }
   }, [send, createPC, addRemoteParticipant])
 
   // ── Handle answer from a participant ───────────────────────
@@ -221,7 +230,10 @@ export function useGroupWebRTC(send: SendFn) {
       }
     }
     useGroupCallStore.getState().setScreenSharing(false)
-  }, [])
+    if (active) {
+      send('group_screen_share', { call_id: callIdRef.current, chat_id: active.chatId, is_sharing: false })
+    }
+  }, [send])
 
   // ── Toggle screen sharing ───────────────────────────────────
   const toggleScreenShare = useCallback(async () => {
@@ -243,17 +255,18 @@ export function useGroupWebRTC(send: SendFn) {
         if (sender) {
           await sender.replaceTrack(screenTrack).catch(() => {})
         } else {
-          pc.addTrack(screenTrack, screenStream)
+          pc.addTrack(screenTrack, active.localStream ?? screenStream)
         }
       }
 
       screenTrack.onended = () => { stopGroupScreenShare() }
       useGroupCallStore.getState().setScreenSharing(true)
+      send('group_screen_share', { call_id: callIdRef.current, chat_id: active.chatId, is_sharing: true })
     } catch {
       screenStreamRef.current?.getTracks().forEach((t) => t.stop())
       screenStreamRef.current = null
     }
-  }, [stopGroupScreenShare])
+  }, [stopGroupScreenShare, send])
 
   return { joinAndOffer, handleOffer, handleAnswer, handleIce, participantLeft, leave, callIdRef, toggleScreenShare }
 }

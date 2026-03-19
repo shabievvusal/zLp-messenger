@@ -86,6 +86,7 @@ export function useWebSocket() {
   const liveCallMemberJoined = useGroupCallStore((s) => s.liveCallMemberJoined)
   const liveCallMemberLeft = useGroupCallStore((s) => s.liveCallMemberLeft)
   const removeLiveCall = useGroupCallStore((s) => s.removeLiveCall)
+  const setRemoteScreenSharing = useGroupCallStore((s) => s.setRemoteScreenSharing)
 
   // Keep activeChatId in ref so event handler always sees latest value
   const activeChatIdRef = useRef(activeChatId)
@@ -240,6 +241,11 @@ export function useWebSocket() {
         _groupWebRTCHandler?.(p.sub_type, p.from, p.data, p.call_id)
         break
       }
+      case 'group_screen_share': {
+        const p = event.payload as { user_id: string; is_sharing: boolean }
+        setRemoteScreenSharing(p.user_id, p.is_sharing)
+        break
+      }
       case 'mention': {
         const p = event.payload as { chat_id: string; message_id: string }
         incrementMention(p.chat_id)
@@ -260,7 +266,7 @@ export function useWebSocket() {
   }, [addMessage, updateMessage, removeMessage, updateLastMessage, setTyping, setOnline,
       incrementUnread, incrementMention, markMessageRead, markChatMessagesRead,
       setIncoming, updateActive, clearAll,
-      liveCallMemberJoined, liveCallMemberLeft, removeLiveCall])
+      liveCallMemberJoined, liveCallMemberLeft, removeLiveCall, setRemoteScreenSharing])
 
   const connect = useCallback(() => {
     if (!isAuthenticated || !accessToken) return

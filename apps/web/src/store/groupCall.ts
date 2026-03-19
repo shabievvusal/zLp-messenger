@@ -5,6 +5,7 @@ export interface GroupParticipant {
   userName: string
   stream: MediaStream | null
   isMuted?: boolean
+  isScreenSharing?: boolean
 }
 
 // Live call info visible to non-participants (per chat)
@@ -44,6 +45,7 @@ interface GroupCallState {
   setVideoOff: (b: boolean) => void
   setMinimized: (b: boolean) => void
   setScreenSharing: (b: boolean) => void
+  setRemoteScreenSharing: (userId: string, isSharing: boolean) => void
   leaveCall: () => void
 }
 
@@ -140,6 +142,19 @@ export const useGroupCallStore = create<GroupCallState>((set, get) => ({
 
   setScreenSharing: (isScreenSharing) =>
     set((s) => s.active ? { active: { ...s.active, isScreenSharing } } : s),
+
+  setRemoteScreenSharing: (userId, isSharing) =>
+    set((s) => {
+      if (!s.active) return s
+      return {
+        active: {
+          ...s.active,
+          participants: s.active.participants.map((p) =>
+            p.userId === userId ? { ...p, isScreenSharing: isSharing } : p
+          ),
+        },
+      }
+    }),
 
   leaveCall: () =>
     set((s) => {
