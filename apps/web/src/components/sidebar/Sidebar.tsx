@@ -15,7 +15,7 @@ export function Sidebar() {
   const clearMentions = useChatStore((s) => s.clearMentions)
 
   const [search, setSearch] = useState('')
-  const [showNewChat, setShowNewChat] = useState(false)
+  const [newChatMode, setNewChatMode] = useState<'private' | 'group' | null>(null)
   const [showDrawer, setShowDrawer] = useState(false)
 
   const filtered = search
@@ -67,7 +67,7 @@ export function Sidebar() {
 
         {/* New chat */}
         <button
-          onClick={() => setShowNewChat(true)}
+          onClick={() => setNewChatMode('private')}
           className="icon-btn"
           title="Новый чат"
         >
@@ -89,7 +89,7 @@ export function Sidebar() {
             <p className="text-sm">{search ? 'Чаты не найдены' : 'Нет чатов'}</p>
             {!search && (
               <button
-                onClick={() => setShowNewChat(true)}
+                onClick={() => setNewChatMode('private')}
                 className="mt-3 text-sm text-primary-500 hover:text-primary-600 transition-colors font-medium"
               >
                 Начать переписку
@@ -108,12 +108,17 @@ export function Sidebar() {
         )}
       </div>
 
-      {showNewChat && <NewChatModal onClose={() => setShowNewChat(false)} />}
+      {newChatMode && (
+        <NewChatModal
+          initialMode={newChatMode}
+          onClose={() => setNewChatMode(null)}
+        />
+      )}
 
       {showDrawer && (
         <SideDrawer
           onClose={() => setShowDrawer(false)}
-          onCreateGroup={() => setShowNewChat(true)}
+          onCreateGroup={() => { setShowDrawer(false); setNewChatMode('group') }}
         />
       )}
     </aside>
