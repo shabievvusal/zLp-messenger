@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --voice-bar-active-out: #4a8a5a;
+  --voice-bar-inactive-out: rgba(0, 0, 0, 0.18);
+  --voice-bar-active-in: #2AABEE;
+  --voice-bar-inactive-in: rgba(0, 0, 0, 0.13);
+}
+.dark {
+  --voice-bar-active-out: #ffffff;
+  --voice-bar-inactive-out: rgba(255, 255, 255, 0.28);
+  --voice-bar-active-in: #2AABEE;
+  --voice-bar-inactive-in: rgba(255, 255, 255, 0.18);
+}
+
 @layer base {
   * {
     box-sizing: border-box;

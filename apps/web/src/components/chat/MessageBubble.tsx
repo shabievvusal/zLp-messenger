@@ -6,6 +6,7 @@ import { chatApi } from '@/api/chat'
 import { useChatStore } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { useChatCtx } from '@/contexts/ChatContext'
+import { VoiceMessage } from './VoiceMessage'
 
 interface Props {
   msg: Message
@@ -218,7 +219,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
                 />
               )}
               {a.type === 'voice' && (
-                <audio src={a.url} controls className="w-48 h-8 mt-1" />
+                <VoiceMessage attachment={a} isOwn={isOwn} />
               )}
               {a.type === 'audio' && (
                 <audio src={a.url} controls className="w-full mt-1" />

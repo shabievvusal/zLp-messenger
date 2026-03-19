@@ -66,6 +66,8 @@ func (h *Handler) Upload(c *fiber.Ctx) error {
 					MimeType:  &result.MimeType,
 				}
 				_ = h.chatRepo.CreateAttachment(c.Context(), attachment)
+				// Embed attachment before broadcasting so WS recipients see the media
+				msg.Attachments = []models.Attachment{*attachment}
 				if h.notifier != nil {
 					h.notifier.BroadcastChat(chatID, "new_message", msg, &userID)
 				}

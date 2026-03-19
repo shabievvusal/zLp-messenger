@@ -140,12 +140,16 @@ export function MessageInput({ chatId }: Props) {
         const attachments = attachment
           ? [attachment]
           : (msg.attachments?.length ? msg.attachments : [])
-        addMessage({
+        const fullMsg = {
           ...msg,
           attachments,
           sender: user ?? undefined,
           reply_to: currentReplyTo ?? undefined,
-        })
+        }
+        // addMessage — adds if not yet in store (HTTP arrived before WS)
+        // updateMessage — patches if WS already added it without attachments
+        addMessage(fullMsg)
+        updateMessage(fullMsg)
         setReplyTo(null)
       }
     } catch (err: unknown) {
