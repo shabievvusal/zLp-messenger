@@ -46,4 +46,13 @@ export const chatApi = {
 
   getSharedMedia: (chatId: string, type: 'photo' | 'document' = 'photo', limit = 20, offset = 0) =>
     api.get<Attachment[]>(`/chats/${chatId}/media`, { params: { type, limit, offset } }),
+
+  addMember: (chatId: string, userId: string) =>
+    api.post(`/chats/${chatId}/members`, { user_id: userId }),
+
+  kickMember: (chatId: string, userId: string) =>
+    api.delete(`/chats/${chatId}/members/${userId}`),
+
+  leaveChat: (chatId: string) =>
+    api.delete(`/chats/${chatId}/leave`),
 }

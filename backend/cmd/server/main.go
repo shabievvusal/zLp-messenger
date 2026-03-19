@@ -115,6 +115,9 @@ func main() {
 	protected.Post("/chats/group", chatHandler.CreateGroup)
 
 	protected.Get("/chats/:chatID/members", chatHandler.GetMembers)
+	protected.Post("/chats/:chatID/members", chatHandler.AddMember)
+	protected.Delete("/chats/:chatID/members/:userID", chatHandler.KickMember)
+	protected.Delete("/chats/:chatID/leave", chatHandler.LeaveChat)
 	protected.Get("/chats/:chatID/messages", chatHandler.GetMessages)
 	protected.Post("/chats/:chatID/messages", chatHandler.SendMessage)
 	protected.Get("/chats/:chatID/messages/search", chatHandler.SearchMessages)

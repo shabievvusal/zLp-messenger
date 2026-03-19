@@ -313,6 +313,67 @@ func (h *Handler) GetSharedMedia(c *fiber.Ctx) error {
 	return c.JSON(items)
 }
 
+// POST /api/chats/:chatID/members
+func (h *Handler) AddMember(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+	var body struct {
+		UserID string `json:"user_id"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid body")
+	}
+	targetID, err := uuid.Parse(body.UserID)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid user_id")
+	}
+	if err := h.service.AddMember(c.Context(), userID, chatID, targetID); err != nil {
+		switch err {
+		case ErrNotMember, ErrPermissionDenied:
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		}
+		return fiber.NewError(fiber.StatusInternalServerError, "failed to add member")
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// DELETE /api/chats/:chatID/leave
+func (h *Handler) LeaveChat(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+	if err := h.service.LeaveChat(c.Context(), userID, chatID); err != nil {
+		return fiber.NewError(fiber.StatusForbidden, err.Error())
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// DELETE /api/chats/:chatID/members/:userID
+func (h *Handler) KickMember(c *fiber.Ctx) error {
+	userID := auth.GetUserIDFromCtx(c)
+	chatID, err := uuid.Parse(c.Params("chatID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid chat id")
+	}
+	targetID, err := uuid.Parse(c.Params("userID"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid user id")
+	}
+	if err := h.service.KickMember(c.Context(), userID, chatID, targetID); err != nil {
+		switch err {
+		case ErrNotMember, ErrPermissionDenied:
+			return fiber.NewError(fiber.StatusForbidden, err.Error())
+		}
+		return fiber.NewError(fiber.StatusInternalServerError, "failed to kick member")
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 // GET /api/chats/:chatID/messages/search
 func (h *Handler) SearchMessages(c *fiber.Ctx) error {
 	userID := auth.GetUserIDFromCtx(c)

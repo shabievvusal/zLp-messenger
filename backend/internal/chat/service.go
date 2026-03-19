@@ -118,11 +118,52 @@ func (s *Service) GetUserChats(ctx context.Context, userID uuid.UUID) ([]models.
 }
 
 func (s *Service) GetMembers(ctx context.Context, userID, chatID uuid.UUID) ([]models.ChatMember, error) {
-	// Проверяем что пользователь — участник чата
 	if _, err := s.repo.GetMember(ctx, chatID, userID); err != nil {
 		return nil, ErrNotMember
 	}
 	return s.repo.GetMembers(ctx, chatID)
+}
+
+func (s *Service) AddMember(ctx context.Context, requesterID, chatID, targetUserID uuid.UUID) error {
+	member, err := s.repo.GetMember(ctx, chatID, requesterID)
+	if err != nil {
+		return ErrNotMember
+	}
+	if member.Role != models.MemberRoleOwner && member.Role != models.MemberRoleAdmin {
+		return ErrPermissionDenied
+	}
+	m := &models.ChatMember{ChatID: chatID, UserID: targetUserID, Role: models.MemberRoleMember}
+	if err := s.repo.AddMember(ctx, m); err != nil {
+		return err
+	}
+	_ = s.repo.UpdateMembersCount(ctx, chatID)
+	return nil
+}
+
+func (s *Service) LeaveChat(ctx context.Context, userID, chatID uuid.UUID) error {
+	if _, err := s.repo.GetMember(ctx, chatID, userID); err != nil {
+		return ErrNotMember
+	}
+	if err := s.repo.RemoveMember(ctx, chatID, userID); err != nil {
+		return err
+	}
+	_ = s.repo.UpdateMembersCount(ctx, chatID)
+	return nil
+}
+
+func (s *Service) KickMember(ctx context.Context, requesterID, chatID, targetUserID uuid.UUID) error {
+	member, err := s.repo.GetMember(ctx, chatID, requesterID)
+	if err != nil {
+		return ErrNotMember
+	}
+	if member.Role != models.MemberRoleOwner && member.Role != models.MemberRoleAdmin {
+		return ErrPermissionDenied
+	}
+	if err := s.repo.RemoveMember(ctx, chatID, targetUserID); err != nil {
+		return err
+	}
+	_ = s.repo.UpdateMembersCount(ctx, chatID)
+	return nil
 }
 
 // ============================================================

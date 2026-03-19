@@ -30,6 +30,7 @@ interface ChatState {
   clearMentions: (chatId: string) => void
   setChatMuted: (chatId: string, until: string | null) => void
   markMessageRead: (msgId: string) => void
+  removeChat: (chatId: string) => void
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -161,4 +162,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       return { messages: next }
     }),
+
+  removeChat: (chatId) =>
+    set((state) => ({
+      chats: state.chats.filter((c) => c.id !== chatId),
+      activeChatId: state.activeChatId === chatId ? null : state.activeChatId,
+    })),
 }))
