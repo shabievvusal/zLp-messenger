@@ -557,6 +557,21 @@ function IcSound() {
   </svg>
 }
 
+// ── Helpers for persisting media device selections ───────────
+
+const MEDIA_SETTINGS_KEY = 'zlp_media_devices'
+
+function loadMediaSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(MEDIA_SETTINGS_KEY) ?? '{}') as Record<string, string>
+  } catch { return {} }
+}
+
+function saveMediaSetting(key: string, value: string) {
+  const current = loadMediaSettings()
+  localStorage.setItem(MEDIA_SETTINGS_KEY, JSON.stringify({ ...current, [key]: value }))
+}
+
 // ── Sound & Camera settings ──────────────────────────────────
 
 function SoundCameraSettings({ onBack }: { onBack: () => void }) {
@@ -564,9 +579,10 @@ function SoundCameraSettings({ onBack }: { onBack: () => void }) {
   const [audioInputs, setAudioInputs]   = useState<MediaDeviceInfo[]>([])
   const [videoInputs, setVideoInputs]   = useState<MediaDeviceInfo[]>([])
 
-  const [selectedOutput, setSelectedOutput] = useState('default')
-  const [selectedInput,  setSelectedInput]  = useState('default')
-  const [selectedCamera, setSelectedCamera] = useState('default')
+  const saved = loadMediaSettings()
+  const [selectedOutput, setSelectedOutput] = useState(saved.audioOutput ?? 'default')
+  const [selectedInput,  setSelectedInput]  = useState(saved.audioInput  ?? 'default')
+  const [selectedCamera, setSelectedCamera] = useState(saved.videoInput  ?? 'default')
 
   const [useForCalls, setUseForCalls]       = useState(true)
   const [acceptCalls, setAcceptCalls]       = useState(true)
@@ -674,7 +690,7 @@ function SoundCameraSettings({ onBack }: { onBack: () => void }) {
           <DeviceRow
             label="Устройство воспроизведения"
             value={selectedOutput}
-            onChange={setSelectedOutput}
+            onChange={(v) => { setSelectedOutput(v); saveMediaSetting('audioOutput', v) }}
             devices={audioOutputs}
           />
         </SoundSection>
@@ -684,7 +700,7 @@ function SoundCameraSettings({ onBack }: { onBack: () => void }) {
           <DeviceRow
             label="Устройство записи"
             value={selectedInput}
-            onChange={setSelectedInput}
+            onChange={(v) => { setSelectedInput(v); saveMediaSetting('audioInput', v) }}
             devices={audioInputs}
           />
           {/* Level meter */}
@@ -723,7 +739,7 @@ function SoundCameraSettings({ onBack }: { onBack: () => void }) {
           <DeviceRow
             label="Устройство записи"
             value={selectedCamera}
-            onChange={setSelectedCamera}
+            onChange={(v) => { setSelectedCamera(v); saveMediaSetting('videoInput', v) }}
             devices={videoInputs}
           />
           {/* Live preview */}

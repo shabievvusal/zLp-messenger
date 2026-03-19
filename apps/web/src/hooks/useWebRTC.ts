@@ -111,10 +111,10 @@ export function useWebRTC(send: SendFn) {
     }
 
     // Renegotiation (e.g. screen share track added mid-call).
-    // Only the initiator sends new offers; callee side answers via handleRenegotiationOffer.
+    // Both sides can renegotiate; the remote side handles via handleRenegotiationOffer.
     pc.onnegotiationneeded = async () => {
       const callState = useCallStore.getState().active
-      if (!callState?.isInitiator || callState.status !== 'active') return
+      if (callState?.status !== 'active') return
       if (pc !== pcRef.current || pc.signalingState !== 'stable') return
       try {
         const offer = await pc.createOffer()
@@ -366,6 +366,12 @@ export function useWebRTC(send: SendFn) {
     closePeerConnection, handleRenegotiationOffer, toggleScreenShare }
 }
 
+function getSavedDevices(): { audioInput?: string; videoInput?: string } {
+  try {
+    return JSON.parse(localStorage.getItem('zlp_media_devices') ?? '{}')
+  } catch { return {} }
+}
+
 export async function getLocalStream(type: 'voice' | 'video'): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error(
@@ -374,8 +380,14 @@ export async function getLocalStream(type: 'voice' | 'video'): Promise<MediaStre
         : 'api-unavailable'
     )
   }
-  return navigator.mediaDevices.getUserMedia({
-    audio: true,
-    video: type === 'video' ? { width: 1280, height: 720, facingMode: 'user' } : false,
-  })
+  const saved = getSavedDevices()
+  const audioConstraint: MediaTrackConstraints = saved.audioInput && saved.audioInput !== 'default'
+    ? { deviceId: { exact: saved.audioInput } }
+    : {}
+  const videoConstraint: boolean | MediaTrackConstraints = type === 'video'
+    ? (saved.videoInput && saved.videoInput !== 'default'
+        ? { deviceId: { exact: saved.videoInput }, width: 1280, height: 720 }
+        : { width: 1280, height: 720, facingMode: 'user' })
+    : false
+  return navigator.mediaDevices.getUserMedia({ audio: audioConstraint, video: videoConstraint })
 }

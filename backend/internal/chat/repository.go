@@ -772,7 +772,7 @@ func (r *Repository) MarkAllRead(ctx context.Context, chatID, userID uuid.UUID) 
 	return senderIDs, err
 }
 
-// GetMessageReads returns the users who have read the given message (excluding the sender).
+// GetMessageReads returns the users who have read the given message, excluding the sender.
 func (r *Repository) GetMessageReads(ctx context.Context, msgID uuid.UUID) ([]models.PublicUser, error) {
 	type row struct {
 		ID        uuid.UUID `db:"id"`
@@ -787,7 +787,9 @@ func (r *Repository) GetMessageReads(ctx context.Context, msgID uuid.UUID) ([]mo
 		SELECT u.id, u.numeric_id, u.username, u.first_name, u.last_name, u.avatar_url
 		FROM message_reads mr
 		JOIN users u ON u.id = mr.user_id
+		JOIN messages m ON m.id = mr.message_id
 		WHERE mr.message_id = $1
+		  AND (m.sender_id IS NULL OR mr.user_id != m.sender_id)
 		ORDER BY u.first_name`, msgID)
 	if err != nil {
 		return nil, err

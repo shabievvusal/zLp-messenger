@@ -60,6 +60,22 @@ export function useGroupWebRTC(send: SendFn) {
       }
     }
 
+    // Renegotiation — fires when tracks are added mid-call (e.g. screen sharing)
+    pc.onnegotiationneeded = async () => {
+      if (pc !== pcsRef.current.get(userId)) return
+      if (pc.signalingState !== 'stable') return
+      try {
+        const offer = await pc.createOffer()
+        if (pc.signalingState !== 'stable') return
+        await pc.setLocalDescription(offer)
+        send('group_webrtc_offer', {
+          target_user_id: userId,
+          call_id: callIdRef.current,
+          data: offer,
+        })
+      } catch { /* ignore */ }
+    }
+
     return pc
   }, [send, setParticipantStream])
 
@@ -84,13 +100,34 @@ export function useGroupWebRTC(send: SendFn) {
     }
   }, [send, createPC, addRemoteParticipant])
 
-  // ── Handle incoming offer (new participant joined) ──────────
+  // ── Handle incoming offer (new participant or renegotiation) ─
   const handleOffer = useCallback(async (
     from: string,
     fromName: string,
     offer: RTCSessionDescriptionInit,
     localStream: MediaStream,
   ) => {
+    const existingPC = pcsRef.current.get(from)
+
+    // Renegotiation from an existing participant (e.g. they started screen sharing)
+    if (existingPC && existingPC.signalingState !== 'closed') {
+      await existingPC.setRemoteDescription(new RTCSessionDescription(offer))
+      const buffered = pendingICE.current.get(from) ?? []
+      for (const c of buffered) {
+        await existingPC.addIceCandidate(new RTCIceCandidate(c)).catch(() => {})
+      }
+      pendingICE.current.set(from, [])
+      const answer = await existingPC.createAnswer()
+      await existingPC.setLocalDescription(answer)
+      send('group_webrtc_answer', {
+        target_user_id: from,
+        call_id: callIdRef.current,
+        data: answer,
+      })
+      return
+    }
+
+    // New participant joining
     addRemoteParticipant(from, fromName)
     const pc = createPC(from)
     localStream.getTracks().forEach((t) => pc.addTrack(t, localStream))

@@ -174,9 +174,17 @@ func (h *Hub) handleEvent(c *Client, event IncomingEvent) {
 			return
 		}
 		ctx := context.Background()
+		msg, err := h.chatService.GetMessageByID(ctx, msgID)
+		if err != nil {
+			return
+		}
+		// Never mark your own message as read by yourself
+		if msg.SenderID != nil && *msg.SenderID == c.UserID {
+			return
+		}
 		_ = h.chatService.MarkRead(ctx, c.UserID, msgID)
 		// Notify the original sender that their message has been read
-		if msg, err := h.chatService.GetMessageByID(ctx, msgID); err == nil && msg.SenderID != nil && *msg.SenderID != c.UserID {
+		if msg.SenderID != nil {
 			h.NotifyUser(*msg.SenderID, EventMessageRead, map[string]any{"message_id": msgID})
 		}
 

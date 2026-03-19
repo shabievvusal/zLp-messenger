@@ -85,15 +85,15 @@ export function MessengerPage() {
       .catch(() => setChats([]))
   }, [])
 
-  // WebRTC signaling — caller side (answer + ice)
+  // WebRTC signaling — caller side (answer + ice + renegotiation offers from callee)
   useEffect(() => {
     registerWebRTCHandler(async (subType, _from, data) => {
-      console.log('[WebRTC] received:', subType)
       if (subType === 'webrtc_answer') await handleAnswer(data as RTCSessionDescriptionInit)
       else if (subType === 'webrtc_ice') await handleICE(data as RTCIceCandidateInit)
+      else if (subType === 'webrtc_offer') await handleRenegotiationOffer(data as RTCSessionDescriptionInit)
     })
     return () => registerWebRTCHandler(null)
-  }, [handleAnswer, handleICE])
+  }, [handleAnswer, handleICE, handleRenegotiationOffer])
 
   // When remote ends or declines the call — close our PC (tracks stopped by clearAll in store)
   useEffect(() => {
