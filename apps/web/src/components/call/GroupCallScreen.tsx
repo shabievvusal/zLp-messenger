@@ -31,7 +31,7 @@ export function GroupCallScreen({
     return () => clearInterval(interval)
   }, [])
 
-  // Auto-focus screen sharer when screen sharing starts
+  // Auto-focus the screen sharer when screen sharing changes
   useEffect(() => {
     if (!active) return
     if (active.isScreenSharing) {
@@ -53,35 +53,44 @@ export function GroupCallScreen({
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60)
     const sec = s % 60
-    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '00')}`
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
   }
 
-  // Build tile list: screen sharers first, then others
+  // Local tile uses screen stream when screen sharing
+  const localDisplayStream = active.isScreenSharing && active.screenStream
+    ? active.screenStream
+    : active.localStream
+
+  // All tiles: screen sharers first
   const allTiles = [
-    { userId: 'me', userName: myName, stream: active.localStream, isSelf: true, isScreenSharing: active.isScreenSharing },
+    {
+      userId: 'me',
+      userName: myName,
+      stream: localDisplayStream,
+      isSelf: true,
+      isScreenSharing: active.isScreenSharing,
+    },
     ...active.participants.map((p) => ({ ...p, isSelf: false })),
   ]
 
-  // Sort: screen sharers first
   const sortedTiles = [
     ...allTiles.filter((t) => t.isScreenSharing),
     ...allTiles.filter((t) => !t.isScreenSharing),
   ]
 
-  const containerCls = isMaximized
-    ? 'fixed inset-0 z-50'
-    : 'fixed bottom-4 right-4 z-50 w-80 rounded-2xl overflow-hidden shadow-2xl'
+  const focusedTile = focusedUserId ? sortedTiles.find((t) => t.userId === focusedUserId) ?? null : null
+  const isFocusMode = isMaximized && focusedTile !== null
+  const stripTiles = isFocusMode ? sortedTiles.filter((t) => t.userId !== focusedUserId) : []
 
-  const focusedTile = focusedUserId ? sortedTiles.find((t) => t.userId === focusedUserId) : null
-  const stripTiles = focusedTile ? sortedTiles.filter((t) => t.userId !== focusedUserId) : []
-  const isFocusMode = isMaximized && focusedTile != null
-
-  // Compact grid mode (no focus selected, or not maximized)
   const count = sortedTiles.length
   const cols = count <= 1 ? 1 : count <= 4 ? 2 : 3
 
+  const containerCls = isMaximized
+    ? 'fixed inset-0 z-50 overflow-hidden'
+    : 'fixed bottom-4 right-4 z-50 w-80 rounded-2xl overflow-hidden shadow-2xl'
+
   return (
-    <div className={`${containerCls} bg-[#1a1a2e] flex flex-col text-white animate-scaleIn`}>
+    <div className={`${containerCls} bg-[#1a1a2e] flex flex-col text-white`}>
 
       {/* Screen share banner */}
       {active.isScreenSharing && (
@@ -126,13 +135,13 @@ export function GroupCallScreen({
         </div>
       </div>
 
-      {/* Main content area */}
+      {/* Main content */}
       {isFocusMode ? (
-        // ── Focus mode: large main tile + bottom strip ───────────
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Large focused tile */}
+        // ── Focus mode ─────────────────────────────────────────
+        <div className="flex-1 min-h-0 flex flex-col">
+          {/* Focused tile fills available space */}
           <div
-            className="flex-1 relative cursor-pointer"
+            className="flex-1 min-h-0 relative cursor-pointer"
             onClick={() => setFocusedUserId(null)}
             title="Нажмите чтобы выйти из режима фокуса"
           >
@@ -142,22 +151,20 @@ export function GroupCallScreen({
               isSelf={focusedTile.isSelf}
               isMuted={focusedTile.isSelf ? active.isMuted : false}
               isScreenSharing={focusedTile.isScreenSharing}
-              compact={false}
               fill
             />
-            {/* Exit focus hint */}
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black/50 text-white/70
-              text-[10px] px-2 py-0.5 rounded-full pointer-events-none">
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black/50 text-white/60
+              text-[10px] px-2 py-0.5 rounded-full pointer-events-none select-none">
               Нажмите чтобы выйти из фокуса
             </div>
           </div>
 
-          {/* Strip toggle arrow */}
+          {/* Strip toggle */}
           {stripTiles.length > 0 && (
             <button
               onClick={() => setStripCollapsed((c) => !c)}
-              className="flex-shrink-0 flex items-center justify-center gap-1 py-1
-                bg-black/30 hover:bg-black/50 text-white/70 text-[10px] transition-colors"
+              className="flex-shrink-0 flex items-center justify-center gap-1.5 py-1
+                bg-black/40 hover:bg-black/60 text-white/70 text-[10px] transition-colors"
             >
               <svg
                 className={`w-3.5 h-3.5 transition-transform ${stripCollapsed ? 'rotate-180' : ''}`}
@@ -169,16 +176,16 @@ export function GroupCallScreen({
             </button>
           )}
 
-          {/* Scrollable participant strip */}
+          {/* Participant strip */}
           {!stripCollapsed && stripTiles.length > 0 && (
             <div className="flex-shrink-0 flex gap-1.5 px-1.5 py-1.5 overflow-x-auto bg-black/20">
               {stripTiles.map((tile) => (
                 <div
                   key={tile.userId}
-                  className="flex-shrink-0 w-28 h-20 cursor-pointer rounded-xl overflow-hidden
+                  className="flex-shrink-0 w-36 h-24 cursor-pointer rounded-xl overflow-hidden
                     ring-2 ring-transparent hover:ring-white/50 transition-all"
                   onClick={() => setFocusedUserId(tile.userId)}
-                  title={`Сфокусироваться на ${tile.userName}`}
+                  title={tile.userName}
                 >
                   <ParticipantTile
                     userName={tile.userName}
@@ -186,7 +193,6 @@ export function GroupCallScreen({
                     isSelf={tile.isSelf}
                     isMuted={tile.isSelf ? active.isMuted : false}
                     isScreenSharing={tile.isScreenSharing}
-                    compact
                     fill
                   />
                 </div>
@@ -195,21 +201,23 @@ export function GroupCallScreen({
           )}
         </div>
       ) : (
-        // ── Grid mode: click a tile to focus ─────────────────────
+        // ── Grid mode ──────────────────────────────────────────
         <div
-          className={`grid gap-1 p-1.5 ${isMaximized ? 'flex-1' : ''}`}
+          className={`grid gap-1 p-1.5 ${isMaximized ? 'flex-1 min-h-0' : ''}`}
           style={{
             gridTemplateColumns: `repeat(${cols}, 1fr)`,
-            ...(isMaximized ? {} : { maxHeight: '280px' }),
+            ...(isMaximized
+              ? { gridAutoRows: '1fr' }
+              : { maxHeight: '240px', gridAutoRows: '110px' }),
           }}
         >
           {sortedTiles.map((tile) => (
             <div
               key={tile.userId}
-              className={`cursor-pointer rounded-xl overflow-hidden transition-all
-                ${isMaximized ? 'hover:ring-2 hover:ring-white/50' : ''}`}
+              className={`min-h-0 rounded-xl overflow-hidden
+                ${isMaximized ? 'cursor-pointer hover:ring-2 hover:ring-white/40 transition-all' : ''}`}
               onClick={() => isMaximized && setFocusedUserId(tile.userId)}
-              title={isMaximized ? `Сфокусироваться на ${tile.userName}` : undefined}
+              title={isMaximized ? tile.userName : undefined}
             >
               <ParticipantTile
                 userName={tile.userName}
@@ -217,7 +225,7 @@ export function GroupCallScreen({
                 isSelf={tile.isSelf}
                 isMuted={tile.isSelf ? active.isMuted : false}
                 isScreenSharing={tile.isScreenSharing}
-                compact={!isMaximized}
+                fill
               />
             </div>
           ))}
@@ -226,7 +234,6 @@ export function GroupCallScreen({
 
       {/* Controls */}
       <div className="flex justify-center items-center gap-4 py-3 bg-black/20 flex-shrink-0">
-
         <CtrlBtn active={active.isMuted} onClick={onToggleMute} activeClass="bg-white/25" small>
           {active.isMuted ? (
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -247,7 +254,6 @@ export function GroupCallScreen({
           )}
         </CtrlBtn>
 
-        {/* Screen share */}
         <CtrlBtn active={active.isScreenSharing} onClick={onToggleScreenShare} activeClass="bg-blue-500/70" small>
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
             d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -268,50 +274,59 @@ export function GroupCallScreen({
   )
 }
 
-// ── Participant tile — NO audio element here (moved to GroupAudioManager in MessengerPage) ──
+// ── Participant tile — NO audio element here (handled by GroupAudioManager in MessengerPage) ──
 function ParticipantTile({
-  userName, stream, isSelf, isMuted, isScreenSharing, compact, fill,
+  userName, stream, isSelf, isMuted, isScreenSharing, fill,
 }: {
-  userName: string; stream: MediaStream | null
-  isSelf: boolean; isMuted: boolean; isScreenSharing?: boolean; compact?: boolean; fill?: boolean
+  userName: string
+  stream: MediaStream | null
+  isSelf: boolean
+  isMuted: boolean
+  isScreenSharing?: boolean
+  fill?: boolean
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
-    if (!stream || !videoRef.current) return
-    videoRef.current.srcObject = stream
+    if (!videoRef.current) return
+    videoRef.current.srcObject = stream ?? null
   }, [stream])
 
-  const hasVideo = stream && stream.getVideoTracks().some((t) => t.readyState === 'live' && t.enabled)
+  const hasVideo = !!stream && stream.getVideoTracks().some((t) => t.readyState === 'live' && t.enabled)
 
   return (
-    <div className={`relative overflow-hidden bg-gray-800/70 flex items-center justify-center
-      ${fill ? 'w-full h-full' : (compact ? 'min-h-[80px] rounded-xl' : 'min-h-[120px] rounded-xl')}`}>
+    <div className={`relative overflow-hidden bg-[#252540] flex items-center justify-center
+      ${fill ? 'w-full h-full' : 'w-full h-full rounded-xl'}`}>
       {hasVideo ? (
         <video
           ref={videoRef}
           autoPlay playsInline
           muted  /* audio handled by GroupAudioManager */
-          className="absolute inset-0 w-full h-full object-cover"
-          style={isSelf && !isScreenSharing ? { transform: 'scaleX(-1)' } : undefined}
+          className="absolute inset-0 w-full h-full"
+          style={{
+            objectFit: isScreenSharing ? 'contain' : 'cover',
+            transform: isSelf && !isScreenSharing ? 'scaleX(-1)' : undefined,
+          }}
         />
       ) : (
-        <div className={`rounded-full bg-gray-600 flex items-center justify-center font-bold
-          ${compact ? 'w-10 h-10 text-base' : 'w-14 h-14 text-xl'}`}>
+        <div className="w-12 h-12 rounded-full bg-gray-600 flex items-center justify-center font-bold text-xl">
           {userName.charAt(0).toUpperCase()}
         </div>
       )}
+
       {/* Screen share badge */}
       {isScreenSharing && (
-        <div className="absolute top-1.5 right-1.5 bg-blue-600/90 rounded-full p-0.5">
+        <div className="absolute top-1.5 right-1.5 bg-blue-600/90 rounded-full p-1">
           <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
         </div>
       )}
-      <div className="absolute bottom-0 left-0 right-0 px-1.5 pb-1 pt-3
-        bg-gradient-to-t from-black/60 to-transparent flex items-center gap-1">
+
+      {/* Name / mute bar */}
+      <div className="absolute bottom-0 left-0 right-0 px-2 pb-1 pt-4
+        bg-gradient-to-t from-black/70 to-transparent flex items-center gap-1">
         {isMuted && (
           <svg className="w-2.5 h-2.5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}

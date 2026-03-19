@@ -230,6 +230,7 @@ export function useGroupWebRTC(send: SendFn) {
       }
     }
     useGroupCallStore.getState().setScreenSharing(false)
+    useGroupCallStore.getState().setGroupScreenStream(null)
     if (active) {
       send('group_screen_share', { call_id: callIdRef.current, chat_id: active.chatId, is_sharing: false })
     }
@@ -261,6 +262,7 @@ export function useGroupWebRTC(send: SendFn) {
 
       screenTrack.onended = () => { stopGroupScreenShare() }
       useGroupCallStore.getState().setScreenSharing(true)
+      useGroupCallStore.getState().setGroupScreenStream(screenStream)
       send('group_screen_share', { call_id: callIdRef.current, chat_id: active.chatId, is_sharing: true })
     } catch {
       screenStreamRef.current?.getTracks().forEach((t) => t.stop())
