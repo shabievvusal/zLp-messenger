@@ -1,66 +1,105 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useChatStore } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { MessageBubble } from './MessageBubble'
 import { DateDivider } from './DateDivider'
-import { format, isSameDay } from 'date-fns'
+import { format, isSameDay, differenceInMinutes } from 'date-fns'
 import type { Message } from '@/types'
 
 interface Props {
   chatId: string
+  onLoadMore: () => void
 }
 
-export function MessageList({ chatId }: Props) {
+export function MessageList({ chatId, onLoadMore }: Props) {
   const messages = useChatStore((s) => s.messages[chatId] ?? [])
   const currentUser = useAuthStore((s) => s.user)
+  const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const prevLenRef = useRef(0)
+  const [showScrollBtn, setShowScrollBtn] = useState(false)
+  const [unreadIdx, setUnreadIdx] = useState<number | null>(null)
 
+  // Auto scroll to bottom on new message
   useEffect(() => {
-    if (messages.length !== prevLenRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: messages.length - prevLenRef.current === 1 ? 'smooth' : 'instant' })
-      prevLenRef.current = messages.length
+    const added = messages.length - prevLenRef.current
+    if (added === 1) {
+      const last = messages[messages.length - 1]
+      const isOwn = last?.sender_id === currentUser?.id
+      if (isOwn || !showScrollBtn) {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      }
+    } else if (added > 1 && prevLenRef.current === 0) {
+      // Initial load — scroll to bottom instantly
+      bottomRef.current?.scrollIntoView()
     }
+    prevLenRef.current = messages.length
   }, [messages.length])
 
-  return (
-    <div className="flex-1 overflow-y-auto py-4 px-4 space-y-1 scrollbar-thin">
-      {messages.map((msg, idx) => {
-        const prev = messages[idx - 1]
-        const showDate = !prev || !isSameDay(new Date(msg.created_at), new Date(prev.created_at))
-        const isOwn = msg.sender_id === currentUser?.id
+  // Show scroll-to-bottom button
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current
+    if (!el) return
+    const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    setShowScrollBtn(fromBottom > 300)
 
-        return (
-          <div key={msg.id}>
-            {showDate && (
-              <DateDivider date={format(new Date(msg.created_at), 'MMMM d, yyyy')} />
-            )}
-            <MessageRow msg={msg} isOwn={isOwn} prevMsg={prev} />
-          </div>
-        )
-      })}
-      <div ref={bottomRef} />
-    </div>
-  )
-}
+    // Infinite scroll — load more on top
+    if (el.scrollTop < 100) onLoadMore()
+  }, [onLoadMore])
 
-function MessageRow({ msg, isOwn, prevMsg }: { msg: Message; isOwn: boolean; prevMsg?: Message }) {
-  const isSameSender = prevMsg?.sender_id === msg.sender_id
-  const showAvatar = !isOwn && !isSameSender
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    setShowScrollBtn(false)
+  }
 
   return (
-    <div className={`flex items-end gap-2 ${isOwn ? 'justify-end' : 'justify-start'}`}>
-      {!isOwn && (
-        <div className="w-7 flex-shrink-0">
-          {showAvatar && msg.sender && (
-            <div className="w-7 h-7 rounded-full bg-primary-400 flex items-center justify-center
-              text-white text-xs font-semibold">
-              {msg.sender.first_name[0]}
+    <div className="relative flex-1 overflow-hidden">
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="h-full overflow-y-auto py-4 px-4 space-y-0.5 scrollbar-thin flex flex-col"
+      >
+        {messages.map((msg, idx) => {
+          const prev = messages[idx - 1]
+          const next = messages[idx + 1]
+          const showDate = !prev || !isSameDay(new Date(msg.created_at), new Date(prev.created_at))
+          const isOwn = msg.sender_id === currentUser?.id
+
+          // Group messages from same sender within 5 minutes
+          const isGrouped = !showDate &&
+            !!prev &&
+            prev.sender_id === msg.sender_id &&
+            differenceInMinutes(new Date(msg.created_at), new Date(prev.created_at)) < 5
+
+          return (
+            <div key={msg.id}>
+              {showDate && (
+                <DateDivider date={format(new Date(msg.created_at), 'MMMM d, yyyy')} />
+              )}
+              <div className={isGrouped ? 'mt-0.5' : 'mt-3'}>
+                <MessageBubble msg={msg} isOwn={isOwn} isGrouped={isGrouped} />
+              </div>
             </div>
-          )}
-        </div>
+          )
+        })}
+        <div ref={bottomRef} className="h-1" />
+      </div>
+
+      {/* Scroll to bottom FAB */}
+      {showScrollBtn && (
+        <button
+          onClick={scrollToBottom}
+          className="absolute bottom-4 right-4 w-10 h-10 rounded-full
+            bg-white dark:bg-gray-700 shadow-lg
+            flex items-center justify-center
+            hover:bg-gray-50 dark:hover:bg-gray-600 transition
+            border border-gray-200 dark:border-gray-600"
+        >
+          <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
       )}
-      <MessageBubble msg={msg} isOwn={isOwn} />
     </div>
   )
 }

@@ -53,6 +53,9 @@ func main() {
 	authRepo := auth.NewRepository(postgres)
 	authService := auth.NewService(authRepo)
 	authHandler := auth.NewHandler(authService)
+	searchRepo := auth.NewSearchRepository(postgres)
+	searchHandler := auth.NewSearchHandler(searchRepo)
+	profileHandler := auth.NewProfileHandler(authRepo)
 
 	chatRepo := chat.NewRepository(postgres)
 	chatService := chat.NewService(chatRepo)
@@ -96,6 +99,10 @@ func main() {
 	protected := api.Group("", middleware.RequireAuth)
 
 	protected.Get("/auth/me", authHandler.Me)
+
+	// Users
+	protected.Get("/users/search", searchHandler.SearchUsers)
+	protected.Patch("/users/me", profileHandler.UpdateProfile)
 
 	// Chats
 	protected.Get("/chats", chatHandler.GetChats)

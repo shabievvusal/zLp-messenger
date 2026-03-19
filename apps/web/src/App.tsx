@@ -5,6 +5,7 @@ import { authApi } from '@/api/auth'
 import { LoginPage } from '@/pages/auth/LoginPage'
 import { RegisterPage } from '@/pages/auth/RegisterPage'
 import { MessengerPage } from '@/pages/MessengerPage'
+import { SettingsPage } from '@/pages/settings/SettingsPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -44,6 +45,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+      <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
       <Route path="/*" element={<PrivateRoute><MessengerPage /></PrivateRoute>} />
     </Routes>
   )
