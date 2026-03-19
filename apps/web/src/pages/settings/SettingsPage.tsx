@@ -1,4 +1,4 @@
-import { useState, useRef, ChangeEvent } from 'react'
+import { useState, useRef, useEffect, ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api/client'
@@ -7,7 +7,7 @@ import { useDarkMode } from '@/hooks/useDarkMode'
 import { mediaUrl } from '@/utils/media'
 import toast from 'react-hot-toast'
 
-type Section = 'profile' | 'general' | 'notifications' | 'privacy' | 'sessions' | null
+type Section = 'profile' | 'general' | 'notifications' | 'privacy' | 'sessions' | 'sound' | null
 
 export function SettingsPage() {
   const navigate = useNavigate()
@@ -24,6 +24,9 @@ export function SettingsPage() {
   }
   if (activeSection === 'sessions') {
     return <SessionsSettings onBack={() => setActiveSection(null)} />
+  }
+  if (activeSection === 'sound') {
+    return <SoundCameraSettings onBack={() => setActiveSection(null)} />
   }
 
   return <SettingsMenu onSection={setActiveSection} onBack={() => navigate('/')} />
@@ -92,6 +95,11 @@ function SettingsMenu({ onSection, onBack }: { onSection: (s: Section) => void; 
             icon={<IcNotifications />}
             label="Уведомления"
             onClick={() => onSection('notifications')}
+          />
+          <SettingsRow
+            icon={<IcSound />}
+            label="Звук и камера"
+            onClick={() => onSection('sound')}
           />
           <SettingsRow
             icon={<IcData />}
@@ -540,4 +548,295 @@ function IcMoon() {
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
       d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
   </svg>
+}
+
+function IcSound() {
+  return <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+      d="M15.536 8.464a5 5 0 010 7.072M12 6v12m0 0l-4-4m4 4l4-4M9.172 16.172a4 4 0 010-5.656M5.636 12.364a9 9 0 0112.728 0" />
+  </svg>
+}
+
+// ── Sound & Camera settings ──────────────────────────────────
+
+function SoundCameraSettings({ onBack }: { onBack: () => void }) {
+  const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([])
+  const [audioInputs, setAudioInputs]   = useState<MediaDeviceInfo[]>([])
+  const [videoInputs, setVideoInputs]   = useState<MediaDeviceInfo[]>([])
+
+  const [selectedOutput, setSelectedOutput] = useState('default')
+  const [selectedInput,  setSelectedInput]  = useState('default')
+  const [selectedCamera, setSelectedCamera] = useState('default')
+
+  const [useForCalls, setUseForCalls]       = useState(true)
+  const [acceptCalls, setAcceptCalls]       = useState(true)
+  const [micLevel, setMicLevel]             = useState(0)
+
+  const videoRef    = useRef<HTMLVideoElement>(null)
+  const streamRef   = useRef<MediaStream | null>(null)
+  const animRef     = useRef<number>(0)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const micStreamRef = useRef<MediaStream | null>(null)
+
+  // Enumerate devices
+  useEffect(() => {
+    async function enumerate() {
+      try {
+        // Request permissions first so labels are visible
+        await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+      } catch { /* ignore — list may still populate without labels */ }
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      setAudioOutputs(devices.filter((d) => d.kind === 'audiooutput'))
+      setAudioInputs(devices.filter((d) => d.kind === 'audioinput'))
+      setVideoInputs(devices.filter((d) => d.kind === 'videoinput'))
+    }
+    enumerate()
+    return () => {
+      stopCamera()
+      stopMic()
+    }
+  }, [])
+
+  // Camera preview
+  useEffect(() => {
+    stopCamera()
+    if (!selectedCamera) return
+    navigator.mediaDevices.getUserMedia({
+      video: selectedCamera === 'default'
+        ? true
+        : { deviceId: { exact: selectedCamera } },
+    }).then((stream) => {
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.play().catch(() => {})
+      }
+    }).catch(() => {})
+  }, [selectedCamera])
+
+  // Mic level meter
+  useEffect(() => {
+    stopMic()
+    navigator.mediaDevices.getUserMedia({
+      audio: selectedInput === 'default'
+        ? true
+        : { deviceId: { exact: selectedInput } },
+    }).then((stream) => {
+      micStreamRef.current = stream
+      const ctx = new AudioContext()
+      const src = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 256
+      src.connect(analyser)
+      analyserRef.current = analyser
+      const data = new Uint8Array(analyser.frequencyBinCount)
+      const tick = () => {
+        analyser.getByteFrequencyData(data)
+        const avg = data.reduce((a, b) => a + b, 0) / data.length
+        setMicLevel(Math.min(100, (avg / 128) * 100))
+        animRef.current = requestAnimationFrame(tick)
+      }
+      animRef.current = requestAnimationFrame(tick)
+    }).catch(() => {})
+    return () => { cancelAnimationFrame(animRef.current) }
+  }, [selectedInput])
+
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+  }
+  function stopMic() {
+    cancelAnimationFrame(animRef.current)
+    micStreamRef.current?.getTracks().forEach((t) => t.stop())
+    micStreamRef.current = null
+  }
+
+  const deviceLabel = (d: MediaDeviceInfo) =>
+    d.label || (d.kind === 'audiooutput' ? 'Динамик' : d.kind === 'audioinput' ? 'Микрофон' : 'Камера')
+
+  return (
+    <div className="flex flex-col h-full bg-white dark:bg-[#1c1c1e] animate-fadeIn">
+      <div className="flex items-center gap-3 px-4 py-3
+        bg-white/80 dark:bg-[#1c1c1e]/80 backdrop-blur-md
+        border-b border-black/8 dark:border-white/8 shadow-sm">
+        <button onClick={onBack} className="icon-btn active:scale-90">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <h1 className="font-semibold text-gray-900 dark:text-gray-100">Звук и камера</h1>
+      </div>
+
+      <div className="flex-1 overflow-y-auto scrollbar-thin py-4 space-y-4">
+
+        {/* ── Speakers ── */}
+        <SoundSection label="Колонки и наушники">
+          <DeviceRow
+            label="Устройство воспроизведения"
+            value={selectedOutput}
+            onChange={setSelectedOutput}
+            devices={audioOutputs}
+          />
+        </SoundSection>
+
+        {/* ── Microphone ── */}
+        <SoundSection label="Микрофон">
+          <DeviceRow
+            label="Устройство записи"
+            value={selectedInput}
+            onChange={setSelectedInput}
+            devices={audioInputs}
+          />
+          {/* Level meter */}
+          <div className="px-5 pb-4">
+            <div className="flex gap-[2px] h-5 items-end">
+              {Array.from({ length: 32 }).map((_, i) => {
+                const threshold = (i / 32) * 100
+                const active = micLevel > threshold
+                return (
+                  <div
+                    key={i}
+                    className={`flex-1 rounded-sm transition-all duration-75 ${
+                      active
+                        ? i < 20 ? 'bg-primary-500' : i < 28 ? 'bg-yellow-400' : 'bg-red-500'
+                        : 'bg-black/10 dark:bg-white/15'
+                    }`}
+                    style={{ height: `${40 + (i % 4) * 15}%` }}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        </SoundSection>
+
+        {/* ── Calls ── */}
+        <SoundSection label="Звонки и видеочаты">
+          <SoundToggleRow
+            label="Использовать эти устройства для звонков"
+            checked={useForCalls}
+            onChange={() => setUseForCalls((v) => !v)}
+          />
+        </SoundSection>
+
+        {/* ── Camera ── */}
+        <SoundSection label="Камера">
+          <DeviceRow
+            label="Устройство записи"
+            value={selectedCamera}
+            onChange={setSelectedCamera}
+            devices={videoInputs}
+          />
+          {/* Live preview */}
+          <div className="mx-5 mb-4 rounded-xl overflow-hidden bg-black aspect-video relative">
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+            />
+            {videoInputs.length === 0 && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-gray-500">
+                <svg className="w-10 h-10 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.361a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <p className="text-sm text-gray-500">Камера недоступна</p>
+              </div>
+            )}
+          </div>
+        </SoundSection>
+
+        {/* ── Other ── */}
+        <SoundSection label="Другие настройки">
+          <SoundToggleRow
+            label="Приём звонков на этом устройстве"
+            checked={acceptCalls}
+            onChange={() => setAcceptCalls((v) => !v)}
+          />
+          <button
+            onClick={() => toast('Откройте системные настройки звука вашей ОС', { icon: 'ℹ️' })}
+            className="w-full flex items-center px-5 py-3.5 text-left
+              hover:bg-black/5 dark:hover:bg-white/5 transition-colors
+              border-t border-black/5 dark:border-white/5"
+          >
+            <span className="flex-1 text-sm font-medium text-primary-500">
+              Перейти к системным настройкам звука
+            </span>
+            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </button>
+        </SoundSection>
+
+        <div className="h-4" />
+      </div>
+    </div>
+  )
+}
+
+function SoundSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold text-primary-500 uppercase tracking-widest px-5 mb-2">
+        {label}
+      </p>
+      <div className="bg-white dark:bg-[#2c2c2e] mx-4 rounded-2xl overflow-hidden shadow-sm
+        border border-black/5 dark:border-white/5">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function DeviceRow({
+  label, value, onChange, devices,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  devices: MediaDeviceInfo[]
+}) {
+  return (
+    <div className="flex items-center justify-between px-5 py-3.5
+      border-b border-black/5 dark:border-white/5 last:border-0 gap-3">
+      <span className="text-sm font-medium text-gray-800 dark:text-gray-100 flex-shrink-0">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="text-sm text-primary-500 font-medium bg-transparent
+          border-none outline-none cursor-pointer text-right max-w-[140px] truncate
+          dark:text-primary-400"
+      >
+        <option value="default">По умолчанию</option>
+        {devices.map((d) => (
+          <option key={d.deviceId} value={d.deviceId}>
+            {d.label || 'Устройство'}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+function SoundToggleRow({ label, checked, onChange }: {
+  label: string
+  checked: boolean
+  onChange: () => void
+}) {
+  return (
+    <div
+      onClick={onChange}
+      className="flex items-center gap-4 px-5 py-3.5 cursor-pointer
+        hover:bg-black/5 dark:hover:bg-white/5 transition-colors
+        border-b border-black/5 dark:border-white/5 last:border-0"
+    >
+      <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-100">{label}</span>
+      <div className={`w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0
+        ${checked ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+        <div className={`w-5 h-5 bg-white rounded-full shadow mt-0.5 transition-transform duration-200
+          ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
+      </div>
+    </div>
+  )
 }
