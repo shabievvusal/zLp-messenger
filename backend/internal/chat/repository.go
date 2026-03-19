@@ -46,7 +46,11 @@ func (r *Repository) GetChatByID(ctx context.Context, id uuid.UUID) (*models.Cha
 // GetUserChats returns all chats where user is a member, with last message
 func (r *Repository) GetUserChats(ctx context.Context, userID uuid.UUID) ([]models.Chat, error) {
 	query := `
-		SELECT c.*
+		SELECT c.*,
+			(SELECT cm2.user_id FROM chat_members cm2
+			 WHERE cm2.chat_id = c.id AND cm2.user_id != $1
+			   AND c.type = 'private' AND cm2.role NOT IN ('left','banned')
+			 LIMIT 1) AS peer_user_id
 		FROM chats c
 		INNER JOIN chat_members cm ON cm.chat_id = c.id
 		WHERE cm.user_id = $1 AND cm.role NOT IN ('left', 'banned')

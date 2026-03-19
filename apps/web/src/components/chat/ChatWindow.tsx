@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useChatStore } from '@/store/chat'
+import { useCallStore } from '@/store/call'
 import { chatApi } from '@/api/chat'
 import { ChatHeader } from './ChatHeader'
 import { MessageList } from './MessageList'
@@ -10,7 +11,11 @@ import { ChatProvider } from '@/contexts/ChatContext'
 
 const PAGE_SIZE = 50
 
-export function ChatWindow() {
+interface Props {
+  onStartCall?: (targetId: string, targetName: string, type: 'voice' | 'video') => void
+}
+
+export function ChatWindow({ onStartCall }: Props) {
   const { chatId } = useParams<{ chatId: string }>()
   const { setMessages, prependMessages, clearUnread, chats } = useChatStore()
   const chat = chats.find((c) => c.id === chatId)
@@ -50,6 +55,11 @@ export function ChatWindow() {
     loadingMore.current = false
   }, [chatId, offset, hasMore])
 
+  const handleStartCall = useCallback((type: 'voice' | 'video') => {
+    if (!chat?.peer_user_id || !onStartCall) return
+    onStartCall(chat.peer_user_id, chat.title ?? 'User', type)
+  }, [chat, onStartCall])
+
   if (!chatId || !chat) {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-400">
@@ -61,7 +71,7 @@ export function ChatWindow() {
   return (
     <ChatProvider>
       <div className="flex flex-col h-full bg-chat dark:bg-chat-dark">
-        <ChatHeader chat={chat} />
+        <ChatHeader chat={chat} onStartCall={handleStartCall} />
         <MessageList chatId={chatId} onLoadMore={handleLoadMore} />
         <MessageInput chatId={chatId} />
       </div>

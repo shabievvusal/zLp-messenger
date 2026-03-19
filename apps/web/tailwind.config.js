@@ -35,6 +35,15 @@ export default {
       fontFamily: {
         sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
+      keyframes: {
+        slideUp: {
+          '0%': { transform: 'translateY(40px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+      },
+      animation: {
+        slideUp: 'slideUp 0.3s ease-out',
+      },
     },
   },
   plugins: [],

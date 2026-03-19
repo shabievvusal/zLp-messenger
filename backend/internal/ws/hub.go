@@ -12,11 +12,10 @@ import (
 	"github.com/zlp-messenger/backend/internal/chat"
 )
 
-// Hub maintains connected clients and broadcasts messages
 type Hub struct {
 	mu          sync.RWMutex
-	clients     map[uuid.UUID]*Client        // userID → client
-	chatClients map[uuid.UUID]map[uuid.UUID]bool // chatID → set of userIDs
+	clients     map[uuid.UUID]*Client
+	chatClients map[uuid.UUID]map[uuid.UUID]bool
 
 	register   chan *Client
 	unregister chan *Client
@@ -64,13 +63,11 @@ func (h *Hub) Run() {
 	}
 }
 
-// BroadcastToChat sends event to all members of a chat
 func (h *Hub) BroadcastToChat(chatID uuid.UUID, event OutgoingEvent, excludeUserID *uuid.UUID) {
 	data, err := json.Marshal(event)
 	if err != nil {
 		return
 	}
-
 	h.mu.RLock()
 	members := h.chatClients[chatID]
 	h.mu.RUnlock()
@@ -91,7 +88,6 @@ func (h *Hub) BroadcastToChat(chatID uuid.UUID, event OutgoingEvent, excludeUser
 	}
 }
 
-// SendToUser sends event to a specific user (if online)
 func (h *Hub) SendToUser(userID uuid.UUID, event OutgoingEvent) {
 	h.mu.RLock()
 	client, ok := h.clients[userID]
@@ -101,7 +97,6 @@ func (h *Hub) SendToUser(userID uuid.UUID, event OutgoingEvent) {
 	}
 }
 
-// IsOnline checks if user is currently connected
 func (h *Hub) IsOnline(userID uuid.UUID) bool {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -109,7 +104,6 @@ func (h *Hub) IsOnline(userID uuid.UUID) bool {
 	return ok
 }
 
-// handleEvent processes incoming events from a client
 func (h *Hub) handleEvent(c *Client, event IncomingEvent) {
 	switch event.Type {
 
@@ -120,10 +114,7 @@ func (h *Hub) handleEvent(c *Client, event IncomingEvent) {
 		}
 		h.BroadcastToChat(chatID, OutgoingEvent{
 			Type: EventUserTyping,
-			Payload: map[string]any{
-				"chat_id": chatID,
-				"user_id": c.UserID,
-			},
+			Payload: map[string]any{"chat_id": chatID, "user_id": c.UserID},
 		}, &c.UserID)
 
 	case EventStopTyping:
@@ -133,10 +124,7 @@ func (h *Hub) handleEvent(c *Client, event IncomingEvent) {
 		}
 		h.BroadcastToChat(chatID, OutgoingEvent{
 			Type: EventUserStopTyping,
-			Payload: map[string]any{
-				"chat_id": chatID,
-				"user_id": c.UserID,
-			},
+			Payload: map[string]any{"chat_id": chatID, "user_id": c.UserID},
 		}, &c.UserID)
 
 	case EventMarkRead:
@@ -145,6 +133,72 @@ func (h *Hub) handleEvent(c *Client, event IncomingEvent) {
 			return
 		}
 		_ = h.chatService.MarkRead(context.Background(), c.UserID, msgID)
+
+	// ── CALLS ──────────────────────────────────────────────────
+
+	case EventCallInitiate:
+		// Caller → Hub → Callee: call_incoming
+		targetID := parseUUID(event.Payload, "target_user_id")
+		if targetID == uuid.Nil {
+			return
+		}
+		callID, _ := event.Payload["call_id"].(string)
+		if callID == "" {
+			callID = uuid.New().String()
+		}
+		callType, _ := event.Payload["call_type"].(string)
+
+		callerName, _ := event.Payload["caller_name"].(string)
+		h.SendToUser(targetID, OutgoingEvent{
+			Type: EventCallIncoming,
+			Payload: map[string]any{
+				"call_id":     callID,
+				"caller_id":   c.UserID,
+				"caller_name": callerName,
+				"call_type":   callType,
+			},
+		})
+
+	case EventCallAccept:
+		callerID := parseUUID(event.Payload, "caller_id")
+		if callerID == uuid.Nil {
+			return
+		}
+		h.SendToUser(callerID, OutgoingEvent{
+			Type: EventCallAccepted,
+			Payload: map[string]any{
+				"call_id":   event.Payload["call_id"],
+				"callee_id": c.UserID,
+			},
+		})
+
+	case EventCallDecline:
+		callerID := parseUUID(event.Payload, "caller_id")
+		if callerID == uuid.Nil {
+			return
+		}
+		h.SendToUser(callerID, OutgoingEvent{
+			Type: EventCallDeclined,
+			Payload: map[string]any{
+				"call_id":   event.Payload["call_id"],
+				"callee_id": c.UserID,
+			},
+		})
+
+	case EventCallEnd:
+		targetID := parseUUID(event.Payload, "target_id")
+		if targetID == uuid.Nil {
+			return
+		}
+		h.SendToUser(targetID, OutgoingEvent{
+			Type: EventCallEnded,
+			Payload: map[string]any{
+				"call_id": event.Payload["call_id"],
+				"by":      c.UserID,
+			},
+		})
+
+	// ── WebRTC SIGNALING ───────────────────────────────────────
 
 	case EventWebRTCOffer, EventWebRTCAnswer, EventWebRTCICE:
 		targetID := parseUUID(event.Payload, "target_user_id")
@@ -170,7 +224,6 @@ func (h *Hub) SubscribeClientToChat(userID, chatID uuid.UUID) {
 		h.chatClients[chatID] = make(map[uuid.UUID]bool)
 	}
 	h.chatClients[chatID][userID] = true
-
 	if client, ok := h.clients[userID]; ok {
 		client.chatIDs[chatID] = true
 	}
@@ -188,23 +241,5 @@ func (h *Hub) setOnline(userID uuid.UUID, online bool) {
 }
 
 func (h *Hub) broadcastPresence(userID uuid.UUID, eventType string) {
-	// TODO: broadcast to all users who have this user in contacts
-	// For now just log
-	log.Printf("ws: presence event %s for user %s", eventType, userID)
-}
-
-func parseUUID(payload map[string]any, key string) uuid.UUID {
-	val, ok := payload[key]
-	if !ok {
-		return uuid.Nil
-	}
-	str, ok := val.(string)
-	if !ok {
-		return uuid.Nil
-	}
-	id, err := uuid.Parse(str)
-	if err != nil {
-		return uuid.Nil
-	}
-	return id
+	log.Printf("ws: presence %s for user %s", eventType, userID)
 }

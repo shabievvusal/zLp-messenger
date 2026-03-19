@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { useChatStore } from '@/store/chat'
+import { useCallStore } from '@/store/call'
 import type { WSEvent, Message } from '@/types'
 
 const RECONNECT_DELAY = 3000
@@ -10,6 +11,13 @@ function getWsUrl(token: string) {
   const host = window.location.host
   const base = import.meta.env.VITE_WS_URL ?? `${proto}://${host}/ws`
   return `${base}?token=${token}`
+}
+
+// Exposed so other hooks (useWebRTC) can consume call_webrtc events
+export type WebRTCHandler = (subType: string, from: string, data: unknown, callId: string) => void
+let _webRTCHandler: WebRTCHandler | null = null
+export function registerWebRTCHandler(fn: WebRTCHandler | null) {
+  _webRTCHandler = fn
 }
 
 export function useWebSocket() {
@@ -25,6 +33,10 @@ export function useWebSocket() {
   const setOnline = useChatStore((s) => s.setOnline)
   const incrementUnread = useChatStore((s) => s.incrementUnread)
   const activeChatId = useChatStore((s) => s.activeChatId)
+
+  const setIncoming = useCallStore((s) => s.setIncoming)
+  const updateActive = useCallStore((s) => s.updateActive)
+  const clearAll = useCallStore((s) => s.clearAll)
 
   // Keep activeChatId in ref so event handler always sees latest value
   const activeChatIdRef = useRef(activeChatId)
@@ -70,8 +82,42 @@ export function useWebSocket() {
         setOnline(user_id, false)
         break
       }
+      case 'call_incoming': {
+        const p = event.payload as {
+          call_id: string; caller_id: string; call_type: string
+          caller_name?: string; caller_avatar?: string
+        }
+        setIncoming({
+          callId: p.call_id,
+          callerId: p.caller_id,
+          callerName: p.caller_name ?? 'Unknown',
+          callerAvatar: p.caller_avatar,
+          type: p.call_type === 'video' ? 'video' : 'voice',
+        })
+        break
+      }
+      case 'call_accepted': {
+        updateActive({ status: 'connecting' })
+        break
+      }
+      case 'call_declined': {
+        clearAll()
+        break
+      }
+      case 'call_ended': {
+        clearAll()
+        break
+      }
+      case 'call_webrtc': {
+        const p = event.payload as {
+          sub_type: string; from: string; data: unknown; call_id: string
+        }
+        _webRTCHandler?.(p.sub_type, p.from, p.data, p.call_id)
+        break
+      }
     }
-  }, [addMessage, updateMessage, removeMessage, updateLastMessage, setTyping, setOnline, incrementUnread])
+  }, [addMessage, updateMessage, removeMessage, updateLastMessage, setTyping, setOnline,
+      incrementUnread, setIncoming, updateActive, clearAll])
 
   const connect = useCallback(() => {
     if (!isAuthenticated || !accessToken) return

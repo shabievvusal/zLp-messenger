@@ -44,6 +44,7 @@ type Chat struct {
 	LastMessage  *Message    `db:"-" json:"last_message,omitempty"`
 	UnreadCount  int         `db:"-" json:"unread_count"`
 	Member       *ChatMember `db:"-" json:"member,omitempty"` // current user's membership
+	PeerUserID   *uuid.UUID  `db:"peer_user_id" json:"peer_user_id,omitempty"` // private chats only
 }
 
 type ChatMember struct {

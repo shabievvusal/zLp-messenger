@@ -25,6 +25,7 @@ export interface Chat {
   updated_at: string
   last_message?: Message
   unread_count: number
+  peer_user_id?: string // private chats only
 }
 
 export type MessageType =
