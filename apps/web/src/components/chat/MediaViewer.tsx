@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useChatCtx } from '@/contexts/ChatContext'
+import { mediaUrl } from '@/utils/media'
 
 export function MediaViewer() {
   const { mediaViewer, closeMedia, mediaGallery, galleryIndex, nextGalleryImage, prevGalleryImage } = useChatCtx()
@@ -61,13 +62,13 @@ export function MediaViewer() {
         >
           {current.type === 'photo' || current.type === 'gif' ? (
             <img
-              src={current.url}
+              src={mediaUrl(current.url)}
               alt=""
               className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl"
             />
           ) : (
             <video
-              src={current.url}
+              src={mediaUrl(current.url)}
               controls
               autoPlay
               className="max-w-[90vw] max-h-[90vh] rounded-xl shadow-2xl"
@@ -99,7 +100,7 @@ export function MediaViewer() {
 
         {/* Download button */}
         <a
-          href={current.url}
+          href={mediaUrl(current.url)}
           download
           onClick={(e) => e.stopPropagation()}
           className="absolute bottom-4 left-4 w-10 h-10 rounded-full bg-white/10
@@ -134,13 +135,13 @@ export function MediaViewer() {
           className="max-w-[90vw] max-h-[90vh] animate-scaleIn">
           {mediaViewer.type === 'photo' || mediaViewer.type === 'gif' ? (
             <img
-              src={mediaViewer.url}
+              src={mediaUrl(mediaViewer.url)}
               alt=""
               className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl"
             />
           ) : (
             <video
-              src={mediaViewer.url}
+              src={mediaUrl(mediaViewer.url)}
               controls
               autoPlay
               className="max-w-[90vw] max-h-[90vh] rounded-xl shadow-2xl"
@@ -150,7 +151,7 @@ export function MediaViewer() {
 
         {/* Download button */}
         <a
-          href={mediaViewer.url}
+          href={mediaUrl(mediaViewer.url)}
           download
           onClick={(e) => e.stopPropagation()}
           className="absolute bottom-4 left-4 w-10 h-10 rounded-full bg-white/10

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
 import type { Attachment } from '@/types'
+import { mediaUrl } from '@/utils/media'
 
 interface Props {
   attachment: Attachment
@@ -25,7 +26,8 @@ export function VoiceMessage({ attachment, isOwn }: Props) {
   const [duration, setDuration] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  const bars = useMemo(() => generateBars(attachment.url), [attachment.url])
+  const url = mediaUrl(attachment.url)
+  const bars = useMemo(() => generateBars(url), [url])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -91,7 +93,7 @@ export function VoiceMessage({ attachment, isOwn }: Props) {
 
   return (
     <div className="flex items-center gap-3 py-1 min-w-[200px] max-w-[260px]">
-      <audio ref={audioRef} src={attachment.url} preload="metadata" />
+      <audio ref={audioRef} src={url} preload="metadata" />
 
       {/* Play / Pause button */}
       <button

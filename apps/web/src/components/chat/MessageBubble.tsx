@@ -7,6 +7,7 @@ import { useChatStore } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { useChatCtx } from '@/contexts/ChatContext'
 import { VoiceMessage } from './VoiceMessage'
+import { mediaUrl } from '@/utils/media'
 
 interface Props {
   msg: Message
@@ -215,9 +216,9 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
                   .filter((a) => a.type === 'photo' || a.type === 'gif')
                   .map((a) => ({
                     id: a.id,
-                    url: a.url,
+                    url: mediaUrl(a.url),
                     type: a.type as 'photo' | 'gif',
-                    thumbnail: a.thumbnail,
+                    thumbnail: a.thumbnail ? mediaUrl(a.thumbnail) : undefined,
                   }))
               )
               const startIndex = galleryItems.findIndex((item) => item.id === attachmentId)
@@ -226,7 +227,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
               } else {
                 const fallback = photos.find((p) => p.id === attachmentId) ?? photos[0]
                 if (fallback) {
-                  openMedia(fallback.url, fallback.type as 'photo' | 'gif')
+                  openMedia(mediaUrl(fallback.url), fallback.type as 'photo' | 'gif')
                 }
               }
             }
@@ -251,7 +252,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
                         style={{ aspectRatio: photos.length === 1 ? '4 / 5' : '1 / 1' }}
                       >
                         <img
-                          src={a.thumbnail || a.url}
+                          src={mediaUrl(a.thumbnail || a.url)}
                           alt=""
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                         />
@@ -269,11 +270,11 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
                 {videos.map((a) => (
                   <video
                     key={a.id}
-                    src={a.url}
+                    src={mediaUrl(a.url)}
                     className="max-w-full rounded-xl max-h-80 cursor-pointer mt-2"
                     onClick={(e) => {
                       e.stopPropagation()
-                      openMedia(a.url, 'video')
+                      openMedia(mediaUrl(a.url), 'video')
                     }}
                   />
                 ))}
@@ -286,7 +287,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
                       {a.type === 'voice' ? (
                         <VoiceMessage attachment={a} isOwn={isOwn} />
                       ) : (
-                        <audio src={a.url} controls className="w-full" />
+                        <audio src={mediaUrl(a.url)} controls className="w-full" />
                       )}
                     </div>
                   ))}
@@ -297,7 +298,7 @@ export function MessageBubble({ msg, isOwn, isGrouped }: Props) {
                   .map((a) => (
                     <a
                       key={a.id}
-                      href={a.url}
+                      href={mediaUrl(a.url)}
                       target="_blank"
                       rel="noreferrer"
                       className="flex items-center gap-2 p-2 rounded-lg bg-black/5 dark:bg-white/5
